@@ -1,6 +1,6 @@
-import { Handle, type NodeProps, Position } from "@xyflow/react";
+import { Handle, type NodeProps, Position, useNodes, useEdges, useUpdateNodeInternals } from "@xyflow/react";
 import { Braces, Key, Link2, Unlink } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import type { TableNodeType } from "#/lib/graph-builder.ts";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -45,39 +45,88 @@ function getTypeColor(type: string): string {
 	);
 }
 
-const HANDLE_SVG = {
-	source: (
-		<svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-			<line x1="0" y1="6" x2="8" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" />
+function SourceSVG({ side }: { side: Position }) {
+	return (
+		<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: side === Position.Left ? "scaleX(-1)" : undefined }}>
+			<line x1="1" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" />
+			<line x1="9" y1="2" x2="9" y2="10" stroke="currentColor" strokeWidth="1.5" />
 		</svg>
-	),
-	"one-to-one": (
-		<svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-			<line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="2" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5" />
-		</svg>
-	),
-	"one-to-many": (
-		<svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-			<line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="2" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="2" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
-		</svg>
-	),
-	"many-to-many": (
-		<svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-			<line x1="2" y1="6" x2="8" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="2" y1="2" x2="5" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="2" y1="10" x2="5" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="8" y1="2" x2="5" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="8" y1="10" x2="5" y2="6" stroke="currentColor" strokeWidth="1.5" />
-		</svg>
-	),
+	);
+}
+
+function TargetSVG({ type, side }: { type: string | undefined; side: Position }) {
+	const flip = side === Position.Right;
+	function svg(children: ReactNode) {
+		return (
+			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: flip ? "scaleX(-1)" : undefined }}>
+				{children}
+			</svg>
+		);
+	}
+	if (type === "one-to-one") {
+		return svg(
+			<><line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="3" y2="10" stroke="currentColor" strokeWidth="1.5" /></>,
+		);
+	}
+	if (type === "many-to-many") {
+		return svg(
+			<><line x1="3" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="9" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="9" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /></>,
+		);
+	}
+	return svg(
+		<><line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="10" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" /></>,
+	);
+}
+
+const HANDLE_OFFSET: Record<number, string> = {
+	[Position.Right]: "right",
+	[Position.Left]: "left",
+	[Position.Top]: "top",
+	[Position.Bottom]: "bottom",
 };
 
-function TableNode({ data, selected }: NodeProps<TableNodeType>) {
+function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 	const { table, referencedColumns, columnRelationships } = data;
+	const allNodes = useNodes();
+	const allEdges = useEdges();
+
+	const curNode = allNodes.find((n) => n.id === id);
+	const cx = curNode ? curNode.position.x + (curNode.width ?? 300) / 2 : 0;
+
+	const sourceHandleSide = useMemo(() => {
+		let dxSum = 0, count = 0;
+		for (const edge of allEdges) {
+			if (edge.source !== id) continue;
+			const other = allNodes.find((n) => n.id === edge.target);
+			if (other) {
+				const ox = other.position.x + (other.width ?? 300) / 2;
+				dxSum += ox - cx;
+				count++;
+			}
+		}
+		if (count === 0) return Position.Right;
+		return dxSum / count > 0 ? Position.Right : Position.Left;
+	}, [id, allNodes, allEdges, cx]);
+
+	const targetHandleSide = useMemo(() => {
+		let dxSum = 0, count = 0;
+		for (const edge of allEdges) {
+			if (edge.target !== id) continue;
+			const other = allNodes.find((n) => n.id === edge.source);
+			if (other) {
+				const ox = other.position.x + (other.width ?? 300) / 2;
+				dxSum += ox - cx;
+				count++;
+			}
+		}
+		if (count === 0) return Position.Left;
+		return dxSum / count > 0 ? Position.Right : Position.Left;
+	}, [id, allNodes, allEdges, cx]);
+
+	const updateNodeInternals = useUpdateNodeInternals();
+	useEffect(() => {
+		updateNodeInternals(id);
+	}, [sourceHandleSide, targetHandleSide, id, updateNodeInternals]);
 
 	return (
 		<div
@@ -167,30 +216,30 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
 						{referencedColumns.includes(col.name) && (
 							<Handle
 								type="source"
-								position={Position.Right}
+								position={sourceHandleSide}
 								id={`col-${col.name}-source`}
 								className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0 !size-auto !min-w-0 !min-h-0"
 								style={{
-									right: -2,
+									[HANDLE_OFFSET[sourceHandleSide]]: -2,
 									color: "var(--primary)",
 								}}
 							>
-								{HANDLE_SVG.source}
+								<SourceSVG side={sourceHandleSide} />
 							</Handle>
 						)}
 
 						{col.isForeignKey && (
 							<Handle
 								type="target"
-								position={Position.Left}
+								position={targetHandleSide}
 								id={`col-${col.name}-target`}
 								className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0 !size-auto !min-w-0 !min-h-0"
 								style={{
-									left: -2,
+									[HANDLE_OFFSET[targetHandleSide]]: -2,
 									color: "var(--muted-foreground)",
 								}}
 							>
-								{HANDLE_SVG[columnRelationships[col.name] as keyof typeof HANDLE_SVG] ?? HANDLE_SVG["one-to-many"]}
+								<TargetSVG type={columnRelationships[col.name]} side={targetHandleSide} />
 							</Handle>
 						)}
 					</div>
