@@ -39,9 +39,10 @@ interface SchemaGraphProps {
 	edgeStyle: EdgeStyle;
 	activeTableName?: string | null;
 	onActiveTableChange?: (name: string | null) => void;
+	erroredTables?: Set<string>;
 }
 
-export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange }: SchemaGraphProps) {
+export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange, erroredTables }: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 	const [layoutDir, setLayoutDir] = useState<LayoutDirection>("TB");
@@ -57,10 +58,10 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			return;
 		}
 
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyle);
+		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyle, erroredTables);
 		setNodes(newNodes);
 		setEdges(newEdges);
-	}, [schema, layoutDir, edgeStyle, setNodes, setEdges]);
+	}, [schema, layoutDir, edgeStyle, erroredTables, setNodes, setEdges]);
 
 	useEffect(() => {
 		setNodes((nds) =>
@@ -71,10 +72,10 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 
 	const handleRelayout = useCallback(() => {
 		if (!schema) return;
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyleRef.current);
+		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyleRef.current, erroredTables);
 		setNodes(newNodes);
 		setEdges(newEdges);
-	}, [schema, layoutDir, setNodes, setEdges]);
+	}, [schema, layoutDir, erroredTables, setNodes, setEdges]);
 
 	const highlightEdges = useCallback(
 		(nodeId: string | null) => {

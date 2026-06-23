@@ -21,6 +21,7 @@ export interface TableNodeData extends Record<string, unknown> {
 	layoutDir: LayoutDirection;
 	referencedColumns: string[];
 	columnRelationships: Record<string, string>;
+	hasError: boolean;
 }
 
 export interface RelationshipEdgeData extends Record<string, unknown> {
@@ -76,6 +77,7 @@ export function buildGraph(
 	schema: ParsedSchema,
 	direction: LayoutDirection = "TB",
 	edgeStyle: EdgeStyle = "bezier",
+	erroredTables?: Set<string>,
 ): {
 	nodes: TableNodeType[];
 	edges: RelationshipEdgeType[];
@@ -132,6 +134,7 @@ export function buildGraph(
 				layoutDir: direction,
 				referencedColumns,
 				columnRelationships,
+				hasError: erroredTables ? erroredTables.has(table.name) : false,
 			},
 			width: NODE_WIDTH,
 			height,

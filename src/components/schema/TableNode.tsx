@@ -95,7 +95,7 @@ function computeSide(
 }
 
 function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
-	const { table, columnRelationships } = data;
+	const { table, columnRelationships, hasError } = data;
 	const allNodes = useNodes();
 	const allEdges = useEdges();
 
@@ -152,7 +152,9 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 			className={`rounded-xl border-2 shadow-lg backdrop-blur-sm transition-all duration-150 ${
 				selected
 					? "border-zinc-400 dark:border-zinc-500 shadow-zinc-400/30 dark:shadow-zinc-500/30"
-					: "border-zinc-200 dark:border-zinc-700/60 shadow-zinc-900/10"
+					: hasError
+						? "border-red-400 dark:border-red-500 shadow-red-400/20 dark:shadow-red-500/20"
+						: "border-zinc-200 dark:border-zinc-700/60 shadow-zinc-900/10"
 			}`}
 			style={{
 				background: "var(--card)",

@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { Moon, RefreshCw, Settings, Sun, Upload } from "lucide-react";
-import { type ChangeEvent, useCallback, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { toast } from "sonner";
 import {
@@ -168,6 +168,16 @@ export default function SchemaPage() {
 		editorRef.current?.scrollToIssue(issue);
 	}, []);
 
+	const erroredTables = useMemo(() => {
+		const s = new Set<string>();
+		for (const issue of issues) {
+			if (issue.type === "error" && issue.table) {
+				s.add(issue.table);
+			}
+		}
+		return s;
+	}, [issues]);
+
 	return (
 		<div className="h-dvh w-dvw overflow-hidden flex flex-col bg-background">
 			<Menubar className="shrink-0 rounded-none border-x-0 border-t-0 h-8 px-2 gap-1 bg-muted/10">
@@ -291,6 +301,7 @@ export default function SchemaPage() {
 							edgeStyle={edgeStyle}
 							activeTableName={activeTableName}
 							onActiveTableChange={setActiveTableName}
+							erroredTables={erroredTables}
 						/>
 					</ReactFlowProvider>
 				</ResizablePanel>

@@ -17,7 +17,7 @@ import {
 import { useTheme } from "#/components/theme-provider.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
-import { parseSchema } from "#/lib/schema-parser.ts";
+import { lintQuick } from "#/lib/schema-parser.ts";
 import type { SchemaIssue } from "#/types/schema.ts";
 
 const appHighlight = syntaxHighlighting(
@@ -155,9 +155,9 @@ function findIssuePos(doc: string, issue: SchemaIssue): { from: number; to: numb
 const sqlLinter = linter(
 	(view: EditorView) => {
 		const doc = view.state.doc.toString();
-		const result = parseSchema(doc);
+		const issues = lintQuick(doc);
 		const diagnostics: { from: number; to: number; severity: "warning" | "error"; message: string }[] = [];
-		for (const issue of result.issues) {
+		for (const issue of issues) {
 			const pos = findIssuePos(doc, issue);
 			if (pos) {
 				diagnostics.push({
@@ -170,7 +170,7 @@ const sqlLinter = linter(
 		}
 		return diagnostics;
 	},
-	{ delay: 300 },
+	{ delay: 500 },
 );
 
 const DEFAULT_DDL = `CREATE TABLE users (

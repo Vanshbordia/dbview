@@ -271,9 +271,15 @@ function parseWithLib(
 			}
 		} catch (e: any) {
 			// Library parse error — add as issue, keep going
+			const raw = e.message ?? "";
+			let friendly = raw;
+			if (/expected/i.test(raw) && /\bbut\b/i.test(raw)) {
+				const preview = stmt.replace(/\s+/g, " ").slice(0, 60).trim();
+				friendly = `Could not parse: "${preview}…"`;
+			}
 			issues.push({
 				type: "warning",
-				message: e.message,
+				message: friendly,
 			});
 		}
 	}
@@ -707,6 +713,28 @@ export function parseSchema(ddl: string): ParsedSchema {
 	// Fall back to our custom parser if library could not extract any tables
 	const fallbackTables = parseWithCustom(cleaned, issues);
 	return { tables: fallbackTables, issues };
+}
+
+/* ---------- Fast linter for editor typing (no node-sql-parser) ---------- */
+
+export function lintQuick(ddl: string): SchemaIssue[] {
+	const cleaned = stripComments(ddl);
+	const issues: SchemaIssue[] = [];
+	const tableRegex = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)\s*\(/gi;
+	let m: RegExpExecArray | null;
+	while ((m = tableRegex.exec(cleaned)) !== null) {
+		const name = m[2];
+		const body = extractBody(cleaned.slice(m.index));
+		if (!body) continue;
+		const lines = splitTopLevel(body);
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed === ",") continue;
+			if (/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check)\b/i.test(trimmed)) continue;
+			parseColumn(trimmed, issues, name);
+		}
+	}
+	return issues;
 }
 
 export { parseCreateTable };
