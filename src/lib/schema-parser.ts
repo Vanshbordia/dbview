@@ -664,6 +664,31 @@ function parseWithCustom(
 	return Array.from(tables.values());
 }
 
+/* ---------- Linting for library-parsed tables ---------- */
+
+function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[]): void {
+	for (const table of tables) {
+		const safe = table.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const nameRe = new RegExp(
+			`create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?:\\w+\\.)?${safe}\\s*\\(`,
+			"i",
+		);
+		const m = nameRe.exec(ddl);
+		if (!m) continue;
+		const body = extractBody(ddl.slice(m.index));
+		if (!body) continue;
+		const lines = splitTopLevel(body);
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed === ",") continue;
+			if (
+				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check)\b/i.test(trimmed)
+			) continue;
+			parseColumn(trimmed, issues, table.name);
+		}
+	}
+}
+
 /* ---------- Public API ---------- */
 
 export function parseSchema(ddl: string): ParsedSchema {
@@ -674,6 +699,8 @@ export function parseSchema(ddl: string): ParsedSchema {
 	const libTables = parseWithLib(cleaned, issues);
 
 	if (libTables.length > 0) {
+		// Run column-level linting on library-parsed tables
+		lintTables(libTables, cleaned, issues);
 		return { tables: libTables, issues };
 	}
 

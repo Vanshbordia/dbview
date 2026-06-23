@@ -25,10 +25,12 @@ import {
 import { usePersistedState } from "#/hooks/use-persisted-state.ts";
 import { parseSchema } from "#/lib/schema-parser.ts";
 import type { EdgeStyle } from "#/lib/graph-builder.ts";
-import type { ParsedSchema } from "#/types/schema.ts";
+import type { ParsedSchema, SchemaIssue } from "#/types/schema.ts";
 import { useTheme } from "../theme-provider.tsx";
+import IssuesPanel from "./IssuesPanel.tsx";
 import SchemaGraph from "./SchemaGraph.tsx";
 import SchemaInput from "./SchemaInput.tsx";
+import type { SchemaInputHandle } from "./SchemaInput.tsx";
 import SettingsDialog from "./SettingsDialog.tsx";
 
 export default function SchemaPage() {
@@ -43,6 +45,7 @@ export default function SchemaPage() {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [edgeStyle, setEdgeStyle] = usePersistedState<EdgeStyle>("dbview:edgeStyle", "bezier");
 	const [activeTableName, setActiveTableName] = useState<string | null>(null);
+	const [issues, setIssues] = useState<SchemaIssue[]>([]);
 
 	const tryRender = useCallback((ddl: string) => {
 		try {
@@ -64,15 +67,7 @@ export default function SchemaPage() {
 				return;
 			}
 
-			const allIssues: string[] = [];
-
-			for (const issue of parsed.issues) {
-				allIssues.push(
-					issue.table
-						? `[${issue.table}] ${issue.message}`
-						: issue.message,
-				);
-			}
+			const allIssues: SchemaIssue[] = [...parsed.issues];
 
 			for (const table of parsed.tables) {
 				for (const fk of table.foreignKeys) {
@@ -82,9 +77,12 @@ export default function SchemaPage() {
 							`${t.schema}.${t.name}` === fk.referencedTable,
 					);
 					if (!refTable) {
-						allIssues.push(
-							`${table.name}.${fk.column}: table "${fk.referencedTable}" not created`,
-						);
+						allIssues.push({
+							type: "error",
+							message: `table "${fk.referencedTable}" not created`,
+							table: table.name,
+							column: fk.column,
+						});
 						continue;
 					}
 					if (fk.referencedColumn) {
@@ -92,25 +90,34 @@ export default function SchemaPage() {
 							(c) => c.name === fk.referencedColumn,
 						);
 						if (!refCol) {
-allIssues.push(
-							`${table.name}.${fk.column}: column "${fk.referencedColumn}" not found in table "${refTable.name}"`,
-						);
+							allIssues.push({
+								type: "error",
+								message: `column "${fk.referencedColumn}" not found in table "${refTable.name}"`,
+								table: table.name,
+								column: fk.column,
+							});
 						}
 					}
 				}
 			}
 
+			setSchema(parsed);
+			setIssues(allIssues);
+
 			if (allIssues.length > 0) {
 				for (const issue of allIssues.slice(0, 3)) {
-					toast.warning(issue);
+					toast.warning(
+						issue.table
+							? `[${issue.table}] ${issue.message}`
+							: issue.message,
+					);
 				}
 				if (allIssues.length > 3) {
 					toast.warning(`...and ${allIssues.length - 3} more issue(s)`);
 				}
+			} else {
+				toast.success(`Rendered ${parsed.tables.length} table(s)`);
 			}
-
-			setSchema(parsed);
-			toast.success(`Rendered ${parsed.tables.length} table(s)`);
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : "Failed to parse schema");
 		}
@@ -155,6 +162,10 @@ allIssues.push(
 		if (values.length > 0) {
 			setEditorOpen(values[0] > 0);
 		}
+	}, []);
+
+	const handleJumpToIssue = useCallback((issue: SchemaIssue) => {
+		editorRef.current?.scrollToIssue(issue);
 	}, []);
 
 	return (
@@ -255,12 +266,18 @@ allIssues.push(
 					collapsible
 					collapsedSize={0}
 				>
-					<div className="h-full border-r border-border bg-muted/10">
-						<SchemaInput
-							ref={editorRef}
-							onRender={handleRender}
-							onChange={handleChange}
-							onActiveTableChange={setActiveTableName}
+					<div className="h-full border-r border-border bg-muted/10 flex flex-col">
+						<div className="flex-1 min-h-0">
+							<SchemaInput
+								ref={editorRef}
+								onRender={handleRender}
+								onChange={handleChange}
+								onActiveTableChange={setActiveTableName}
+							/>
+						</div>
+						<IssuesPanel
+							issues={issues}
+							onJumpToIssue={handleJumpToIssue}
 						/>
 					</div>
 				</ResizablePanel>

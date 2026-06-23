@@ -1,6 +1,6 @@
 import { sql } from "@codemirror/lang-sql";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { linter } from "@codemirror/lint";
+import { linter, lintGutter } from "@codemirror/lint";
 import { Compartment, EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { tags } from "@lezer/highlight";
@@ -163,7 +163,7 @@ const sqlLinter = linter(
 				diagnostics.push({
 					from: pos.from,
 					to: pos.to,
-					severity: "warning",
+					severity: issue.type === "error" ? "error" : "warning",
 					message: issue.message,
 				});
 			}
@@ -285,6 +285,7 @@ interface SchemaInputProps {
 
 export interface SchemaInputHandle {
 	setValue: (content: string) => void;
+	scrollToIssue: (issue: SchemaIssue) => void;
 }
 
 const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
@@ -324,6 +325,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 					basicSetup,
 					sql(),
 					EditorView.lineWrapping,
+					lintGutter(),
 					appTheme,
 					appHighlight,
 					themeCompartment.current.of(dark ? oneDark : []),
@@ -384,6 +386,17 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 							},
 						});
 					}
+				},
+				scrollToIssue: (issue: SchemaIssue) => {
+					const view = viewRef.current;
+					if (!view) return;
+					const doc = view.state.doc.toString();
+					const pos = findIssuePos(doc, issue);
+					if (!pos) return;
+					view.dispatch({
+						selection: { anchor: pos.from },
+						scrollIntoView: true,
+					});
 				},
 			}),
 			[],
