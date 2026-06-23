@@ -520,6 +520,10 @@ function parseColumn(
 			/\bREFERENCES\s+(?:\w+\.)?\w+\s*\(\w+\)/gi,
 			"",
 		);
+		remaining = remaining.replace(
+			/\bON\s+(DELETE|UPDATE)\s+(CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/gi,
+			"",
+		);
 		remaining = remaining.replace(/\s+/g, " ").trim();
 		if (remaining) {
 			issues.push({

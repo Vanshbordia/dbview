@@ -199,36 +199,128 @@ function layoutNodes(
 	edges: Edge[],
 	direction: LayoutDirection = "TB",
 ): void {
-	const g = new dagre.graphlib.Graph();
-	g.setDefaultEdgeLabel(() => ({}));
-	g.setGraph({
-		rankdir: direction,
-		nodesep: 60,
-		ranksep: 120,
-		marginx: 60,
-		marginy: 60,
-	});
+	type LayoutEntry = { ids: Set<string>; centers: Map<string, { x: number; y: number }>; bb: { x: number; y: number; w: number; h: number } };
 
+	// 1. Compute degree (connection count) for each node
+	const degree = new Map<string, number>();
+	for (const n of nodes) degree.set(n.id, 0);
+	for (const e of edges) {
+		degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+		degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+	}
+
+	// 2. Find connected components (undirected graph)
+	const adj = new Map<string, string[]>();
+	for (const n of nodes) adj.set(n.id, []);
+	for (const e of edges) {
+		adj.get(e.source)!.push(e.target);
+		adj.get(e.target)!.push(e.source);
+	}
+	const visited = new Set<string>();
+	const rawComps: string[][] = [];
 	for (const node of nodes) {
-		g.setNode(node.id, {
-			width: node.width ?? NODE_WIDTH,
-			height: node.height ?? 200,
+		if (visited.has(node.id)) continue;
+		const ids = new Set<string>();
+		const queue = [node.id];
+		visited.add(node.id);
+		while (queue.length) {
+			const cur = queue.pop()!;
+			ids.add(cur);
+			for (const nb of adj.get(cur)!) {
+				if (!visited.has(nb)) { visited.add(nb); queue.push(nb); }
+			}
+		}
+		rawComps.push([...ids]);
+	}
+
+	// 3. Sort nodes within each component by degree (desc) for better ordering
+	for (const comp of rawComps) {
+		comp.sort((a, b) => (degree.get(b) ?? 0) - (degree.get(a) ?? 0));
+	}
+
+	// 4. Lay out each component independently with dagre
+	const layouts: LayoutEntry[] = [];
+	for (const compIds of rawComps) {
+		if (compIds.length === 0) continue;
+		const compNodes = nodes.filter((n) => compIds.includes(n.id));
+		const compEdges = edges.filter((e) => compIds.includes(e.source) && compIds.includes(e.target));
+
+		const g = new dagre.graphlib.Graph();
+		const cnt = compIds.length;
+		const tight = cnt <= 4 ? 50 : cnt <= 10 ? 40 : 30;
+		g.setDefaultEdgeLabel(() => ({}));
+		g.setGraph({
+			rankdir: direction,
+			nodesep: tight,
+			ranksep: tight * 1.4,
+			marginx: 16,
+			marginy: 16,
+		});
+		for (const n of compNodes) {
+			g.setNode(n.id, { width: n.width ?? NODE_WIDTH, height: n.height ?? 200 });
+		}
+		for (const e of compEdges) {
+			g.setEdge(e.source, e.target, { weight: 2 });
+		}
+		dagre.layout(g);
+
+		const centers = new Map<string, { x: number; y: number }>();
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const n of compNodes) {
+			const p = g.node(n.id);
+			if (!p) continue;
+			centers.set(n.id, { x: p.x, y: p.y });
+			const halfW = (n.width ?? NODE_WIDTH) / 2;
+			const halfH = (n.height ?? 200) / 2;
+			if (p.x - halfW < minX) minX = p.x - halfW;
+			if (p.y - halfH < minY) minY = p.y - halfH;
+			if (p.x + halfW > maxX) maxX = p.x + halfW;
+			if (p.y + halfH > maxY) maxY = p.y + halfH;
+		}
+		layouts.push({
+			ids: new Set(compIds),
+			centers,
+			bb: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
 		});
 	}
 
-	for (const edge of edges) {
-		g.setEdge(edge.source, edge.target);
-	}
+	// 5. Pack components into grid rows
+	const isTB = direction === "TB";
+	const gap = 80;
+	const PAD = 40;
+	// Sort components by size (largest first) so big ones go first
+	layouts.sort((a, b) => (isTB ? b.bb.w - a.bb.w : b.bb.h - a.bb.h));
 
-	dagre.layout(g);
+	const placed: { offset: number; size: number }[] = [];
+	const ROW_MAX = isTB ? 1400 : 800; // max row width (TB) or height (LR)
 
-	for (const node of nodes) {
-		const pos = g.node(node.id);
-		if (pos) {
-			node.position = {
-				x: pos.x - (node.width ?? NODE_WIDTH) / 2,
-				y: pos.y - (node.height ?? 200) / 2,
+	for (const lay of layouts) {
+		const dim = isTB ? lay.bb.w : lay.bb.h;
+		// Find a row that fits
+		let rowIdx = placed.length;
+		for (let i = 0; i <= placed.length; i++) {
+			if (i === placed.length) { placed.push({ offset: PAD, size: 0 }); rowIdx = i; break; }
+			const row = placed[i];
+			if (row.offset + dim + gap <= ROW_MAX) {
+				rowIdx = i;
+				break;
+			}
+		}
+		const row = placed[rowIdx];
+		const dx = isTB ? row.offset : PAD;
+		const dy = isTB ? PAD + rowIdx * (gap + 300) : row.offset; // approx row height 300
+		// Centers within the component are relative to bb.x/bb.y; shift
+		for (const [id, c] of lay.centers) {
+			const n = nodes.find((nd) => nd.id === id);
+			if (!n) continue;
+			const nx = (c.x - lay.bb.x) + dx;
+			const ny = (c.y - lay.bb.y) + dy;
+			n.position = {
+				x: nx - (n.width ?? NODE_WIDTH) / 2,
+				y: ny - (n.height ?? 200) / 2,
 			};
 		}
+		row.offset += dim + gap;
+		row.size = Math.max(row.size, isTB ? lay.bb.h : lay.bb.w);
 	}
 }
