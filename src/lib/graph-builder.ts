@@ -8,6 +8,7 @@ import type {
 } from "#/types/schema.ts";
 
 export type LayoutDirection = "TB" | "LR";
+export type EdgeStyle = "bezier" | "smoothstep";
 
 const NODE_WIDTH = 300;
 const NODE_ROW_HEIGHT = 34;
@@ -29,6 +30,7 @@ export interface RelationshipEdgeData extends Record<string, unknown> {
 	targetColumn: string;
 	sourceTable: string;
 	targetTable: string;
+	edgeStyle: EdgeStyle;
 }
 
 export type TableNodeType = Node<TableNodeData, "table">;
@@ -73,6 +75,7 @@ function isJunctionTable(table: TableSchema): boolean {
 export function buildGraph(
 	schema: ParsedSchema,
 	direction: LayoutDirection = "TB",
+	edgeStyle: EdgeStyle = "bezier",
 ): {
 	nodes: TableNodeType[];
 	edges: RelationshipEdgeType[];
@@ -174,6 +177,7 @@ export function buildGraph(
 					targetColumn: fk.column,
 					sourceTable: refTableName,
 					targetTable: table.name,
+					edgeStyle,
 				},
 				style: {
 					strokeWidth: relType === "many-to-many" ? 3 : 2,

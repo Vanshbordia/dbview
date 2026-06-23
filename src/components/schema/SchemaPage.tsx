@@ -1,5 +1,5 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { Moon, RefreshCw, Sun, Upload } from "lucide-react";
+import { Moon, RefreshCw, Settings, Sun, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -23,10 +23,12 @@ import {
 	ResizablePanelGroup,
 } from "#/components/ui/resizable.tsx";
 import { parseSchema } from "#/lib/schema-parser.ts";
+import type { EdgeStyle } from "#/lib/graph-builder.ts";
 import type { ParsedSchema } from "#/types/schema.ts";
 import { useTheme } from "../theme-provider.tsx";
 import SchemaGraph from "./SchemaGraph.tsx";
 import SchemaInput from "./SchemaInput.tsx";
+import SettingsDialog from "./SettingsDialog.tsx";
 
 export default function SchemaPage() {
 	const [schema, setSchema] = useState<ParsedSchema | null>(null);
@@ -37,6 +39,9 @@ export default function SchemaPage() {
 	const panelRef = useRef<PanelImperativeHandle>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const editorRef = useRef<{ setValue: (v: string) => void }>(null);
+	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>("bezier");
+	const [activeTableName, setActiveTableName] = useState<string | null>(null);
 
 	const tryRender = useCallback((ddl: string) => {
 		try {
@@ -57,6 +62,43 @@ export default function SchemaPage() {
 				toast.error("No tables found in the DDL. Check your SQL syntax.");
 				return;
 			}
+
+			const issues: string[] = [];
+			for (const table of parsed.tables) {
+				for (const fk of table.foreignKeys) {
+					const refTable = parsed.tables.find(
+						(t) =>
+							t.name === fk.referencedTable ||
+							`${t.schema}.${t.name}` === fk.referencedTable,
+					);
+					if (!refTable) {
+						issues.push(
+							`${table.name}.${fk.column}: table "${fk.referencedTable}" not found`,
+						);
+						continue;
+					}
+					if (fk.referencedColumn) {
+						const refCol = refTable.columns.find(
+							(c) => c.name === fk.referencedColumn,
+						);
+						if (!refCol) {
+							issues.push(
+								`${table.name}.${fk.column}: column "${fk.referencedColumn}" not found in "${refTable.name}"`,
+							);
+						}
+					}
+				}
+			}
+
+			if (issues.length > 0) {
+				for (const issue of issues.slice(0, 3)) {
+					toast.warning(issue);
+				}
+				if (issues.length > 3) {
+					toast.warning(`...and ${issues.length - 3} more issue(s)`);
+				}
+			}
+
 			setSchema(parsed);
 			toast.success(`Rendered ${parsed.tables.length} table(s)`);
 		} catch (e) {
@@ -114,6 +156,11 @@ export default function SchemaPage() {
 						<MenubarItem onSelect={() => fileInputRef.current?.click()}>
 							<Upload className="size-3.5 mr-2" />
 							Open SQL File...
+						</MenubarItem>
+						<MenubarSeparator />
+						<MenubarItem onSelect={() => setSettingsOpen(true)}>
+							<Settings className="size-3.5 mr-2" />
+							Settings...
 						</MenubarItem>
 					</MenubarContent>
 				</MenubarMenu>
@@ -203,6 +250,7 @@ export default function SchemaPage() {
 							ref={editorRef}
 							onRender={handleRender}
 							onChange={handleChange}
+							onActiveTableChange={setActiveTableName}
 						/>
 					</div>
 				</ResizablePanel>
@@ -211,10 +259,24 @@ export default function SchemaPage() {
 
 				<ResizablePanel defaultSize="70%" minSize="30%" maxSize="100%">
 					<ReactFlowProvider>
-						<SchemaGraph schema={schema} />
+						<SchemaGraph
+							schema={schema}
+							edgeStyle={edgeStyle}
+							activeTableName={activeTableName}
+							onActiveTableChange={setActiveTableName}
+						/>
 					</ReactFlowProvider>
 				</ResizablePanel>
 			</ResizablePanelGroup>
+
+			<SettingsDialog
+				open={settingsOpen}
+				onOpenChange={setSettingsOpen}
+				edgeStyle={edgeStyle}
+				onEdgeStyleChange={setEdgeStyle}
+				theme={theme}
+				setTheme={setTheme}
+			/>
 		</div>
 	);
 }

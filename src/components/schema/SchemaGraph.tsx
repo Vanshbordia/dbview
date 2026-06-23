@@ -9,13 +9,14 @@ import {
 	useNodesState,
 	useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import type { Edge, Node } from "@xyflow/react";
 import { Maximize2, RefreshCw, Shuffle } from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
 import {
 	buildGraph,
+	type EdgeStyle,
 	type LayoutDirection,
 	type TableNodeType,
 } from "#/lib/graph-builder.ts";
@@ -35,14 +36,19 @@ const defaultEdgeOptions = {
 
 interface SchemaGraphProps {
 	schema: ParsedSchema | null;
+	edgeStyle: EdgeStyle;
+	activeTableName?: string | null;
+	onActiveTableChange?: (name: string | null) => void;
 }
 
-export default function SchemaGraph({ schema }: SchemaGraphProps) {
+export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange }: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 	const [layoutDir, setLayoutDir] = useState<LayoutDirection>("TB");
 	const [selectedTable, setSelectedTable] = useState<TableSchema | null>(null);
 	const { fitView } = useReactFlow();
+	const edgeStyleRef = useRef(edgeStyle);
+	edgeStyleRef.current = edgeStyle;
 
 	useEffect(() => {
 		if (!schema || schema.tables.length === 0) {
@@ -51,7 +57,21 @@ export default function SchemaGraph({ schema }: SchemaGraphProps) {
 			return;
 		}
 
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir);
+		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyle);
+		setNodes(newNodes);
+		setEdges(newEdges);
+	}, [schema, layoutDir, edgeStyle, setNodes, setEdges]);
+
+	useEffect(() => {
+		setNodes((nds) =>
+			nds.map((n) => ({ ...n, selected: n.id === activeTableName })),
+		);
+		highlightEdges(activeTableName ?? null);
+	}, [activeTableName, setNodes, setEdges]);
+
+	const handleRelayout = useCallback(() => {
+		if (!schema) return;
+		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyleRef.current);
 		setNodes(newNodes);
 		setEdges(newEdges);
 	}, [schema, layoutDir, setNodes, setEdges]);
@@ -88,22 +108,17 @@ export default function SchemaGraph({ schema }: SchemaGraphProps) {
 			if (tableNode.data?.table) {
 				setSelectedTable(tableNode.data.table);
 				highlightEdges(node.id);
+				onActiveTableChange?.(node.id);
 			}
 		},
-		[highlightEdges],
+		[highlightEdges, onActiveTableChange],
 	);
 
 	const onPaneClick = useCallback(() => {
 		setSelectedTable(null);
 		highlightEdges(null);
-	}, [highlightEdges]);
-
-	const handleRelayout = useCallback(() => {
-		if (!schema) return;
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir);
-		setNodes(newNodes);
-		setEdges(newEdges);
-	}, [schema, layoutDir, setNodes, setEdges]);
+		onActiveTableChange?.(null);
+	}, [highlightEdges, onActiveTableChange]);
 
 	const handleToggleDirection = useCallback(() => {
 		setLayoutDir((prev) => (prev === "TB" ? "LR" : "TB"));

@@ -1,4 +1,4 @@
-import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
+import { BaseEdge, type EdgeProps, getBezierPath, getSmoothStepPath } from "@xyflow/react";
 import type { RelationshipEdgeType } from "#/lib/graph-builder.ts";
 
 const REL_COLORS: Record<string, string> = {
@@ -18,7 +18,9 @@ function RelationshipEdge({
 	data,
 	markerEnd,
 }: EdgeProps<RelationshipEdgeType>) {
-	const [edgePath, labelX, labelY] = getBezierPath({
+	const useSmoothStep = data?.edgeStyle === "smoothstep";
+	const pathFn = useSmoothStep ? getSmoothStepPath : getBezierPath;
+	const [edgePath, labelX, labelY] = pathFn({
 		sourceX,
 		sourceY,
 		sourcePosition,

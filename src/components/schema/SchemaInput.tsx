@@ -15,6 +15,7 @@ import {
 } from "react";
 import { useTheme } from "#/components/theme-provider.tsx";
 import { Button } from "#/components/ui/button.tsx";
+import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 
 const appHighlight = syntaxHighlighting(
 	HighlightStyle.define([
@@ -48,12 +49,11 @@ const appHighlight = syntaxHighlighting(
 
 const appTheme = EditorView.theme({
 	"&": {
-		height: "100%",
 		backgroundColor: "var(--background)",
 		color: "var(--foreground)",
 		fontSize: "13px",
 	},
-	".cm-scroller": { overflow: "auto" },
+	".cm-scroller": { overflow: "hidden" },
 	".cm-content": {
 		caretColor: "var(--foreground)",
 		padding: "12px 0",
@@ -215,6 +215,7 @@ CREATE TABLE employees (
 interface SchemaInputProps {
 	onRender: (ddl: string) => void;
 	onChange?: (ddl: string) => void;
+	onActiveTableChange?: (tableName: string | null) => void;
 }
 
 export interface SchemaInputHandle {
@@ -222,7 +223,7 @@ export interface SchemaInputHandle {
 }
 
 const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
-	function SchemaInput({ onRender, onChange }, ref) {
+	function SchemaInput({ onRender, onChange, onActiveTableChange }, ref) {
 		const { theme } = useTheme();
 		const editorRef = useRef<HTMLDivElement>(null);
 		const viewRef = useRef<EditorView | null>(null);
@@ -230,6 +231,8 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 		const themeCompartment = useRef(new Compartment());
 		const changeCb = useRef(onChange);
 		changeCb.current = onChange;
+		const activeTableCb = useRef(onActiveTableChange);
+		activeTableCb.current = onActiveTableChange;
 
 		const initialDark =
 			typeof document !== "undefined" &&
@@ -262,6 +265,17 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged && changeCb.current) {
 							changeCb.current(update.state.doc.toString());
+						}
+						if (update.selectionSet) {
+							const pos = update.state.selection.main.head;
+							const line = update.state.doc.lineAt(pos);
+							const text = line.text;
+							const m = text.match(
+									/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+(?:\.\w+)?)/i,
+								)
+								?? text.match(/REFERENCES\s+(\w+(?:\.\w+)?)/i);
+							const name = m ? (m[1].includes(".") ? m[1].split(".")[1] : m[1]) : null;
+							activeTableCb.current?.(name);
 						}
 					}),
 				],
@@ -377,7 +391,9 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 				</div>
 
 				<div className="flex-1 min-h-0">
-					<div ref={editorRef} className="h-full" />
+					<ScrollArea className="h-full">
+						<div ref={editorRef} />
+					</ScrollArea>
 				</div>
 			</div>
 		);
