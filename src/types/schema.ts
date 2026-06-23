@@ -25,8 +25,16 @@ export interface TableSchema {
 	primaryKey: string[];
 }
 
+export interface SchemaIssue {
+	type: "error" | "warning";
+	message: string;
+	table?: string;
+	column?: string;
+}
+
 export interface ParsedSchema {
 	tables: TableSchema[];
+	issues: SchemaIssue[];
 }
 
 export type RelationshipType = "one-to-one" | "one-to-many" | "many-to-many";

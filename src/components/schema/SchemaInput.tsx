@@ -1,5 +1,6 @@
 import { sql } from "@codemirror/lang-sql";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { linter } from "@codemirror/lint";
 import { Compartment, EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { tags } from "@lezer/highlight";
@@ -16,6 +17,8 @@ import {
 import { useTheme } from "#/components/theme-provider.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
+import { parseSchema } from "#/lib/schema-parser.ts";
+import type { SchemaIssue } from "#/types/schema.ts";
 
 const appHighlight = syntaxHighlighting(
 	HighlightStyle.define([
@@ -107,6 +110,68 @@ function getResolvedDark(theme: string): boolean {
 	if (theme === "light") return false;
 	return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
+
+function escapeRegex(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findIssuePos(doc: string, issue: SchemaIssue): { from: number; to: number } | null {
+	const table = issue.table;
+	const column = issue.column;
+	if (!table) return null;
+
+	const tableRe = new RegExp(
+		`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(?:\\w+\\.)?${escapeRegex(table)}\\s*\\(`,
+		"i",
+	);
+	const tableMatch = tableRe.exec(doc);
+	if (!tableMatch) return null;
+
+	const blockStart = tableMatch.index;
+	let depth = 0;
+	let blockEnd = doc.length;
+	for (let i = blockStart; i < doc.length; i++) {
+		if (doc[i] === "(") depth++;
+		if (doc[i] === ")") {
+			depth--;
+			if (depth === 0) {
+				blockEnd = i + 1;
+				break;
+			}
+		}
+	}
+
+	const block = doc.slice(blockStart, blockEnd);
+	const searchFor = column ?? table;
+	const searchRe = new RegExp(`\\b${escapeRegex(searchFor)}\\b`, "i");
+	const colMatch = searchRe.exec(block);
+	if (!colMatch) return null;
+
+	const from = blockStart + colMatch.index;
+	const to = from + colMatch[0].length;
+	return { from, to };
+}
+
+const sqlLinter = linter(
+	(view: EditorView) => {
+		const doc = view.state.doc.toString();
+		const result = parseSchema(doc);
+		const diagnostics: { from: number; to: number; severity: "warning" | "error"; message: string }[] = [];
+		for (const issue of result.issues) {
+			const pos = findIssuePos(doc, issue);
+			if (pos) {
+				diagnostics.push({
+					from: pos.from,
+					to: pos.to,
+					severity: "warning",
+					message: issue.message,
+				});
+			}
+		}
+		return diagnostics;
+	},
+	{ delay: 300 },
+);
 
 const DEFAULT_DDL = `CREATE TABLE users (
   id SERIAL PRIMARY KEY,
@@ -262,6 +327,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 					appTheme,
 					appHighlight,
 					themeCompartment.current.of(dark ? oneDark : []),
+					sqlLinter,
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged && changeCb.current) {
 							changeCb.current(update.state.doc.toString());

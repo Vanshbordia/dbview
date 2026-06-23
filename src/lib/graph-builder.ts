@@ -166,8 +166,8 @@ export function buildGraph(
 				id: edgeId,
 				source: refTableName,
 				target: table.name,
-				sourceHandle: `col-${resolvedCol}-source`,
-				targetHandle: `col-${fk.column}-target`,
+				sourceHandle: `col-${resolvedCol}-source-${table.name}`,
+				targetHandle: `col-${fk.column}-target-${refTableName}`,
 				type: "relationship",
 				markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
 				data: {

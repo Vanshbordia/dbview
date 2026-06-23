@@ -1,6 +1,6 @@
 import { Handle, type NodeProps, Position, useNodes, useEdges, useUpdateNodeInternals } from "@xyflow/react";
 import { Braces, Key, Link2, Unlink } from "lucide-react";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useLayoutEffect, useMemo } from "react";
 import type { TableNodeType } from "#/lib/graph-builder.ts";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -35,10 +35,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 function getTypeColor(type: string): string {
-	const base = type
-		.replace(/\(.*\)/, "")
-		.trim()
-		.toUpperCase();
+	const base = type.replace(/\(.*\)/, "").trim().toUpperCase();
 	return (
 		TYPE_COLORS[base] ??
 		"bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
@@ -56,77 +53,99 @@ function SourceSVG({ side }: { side: Position }) {
 
 function TargetSVG({ type, side }: { type: string | undefined; side: Position }) {
 	const flip = side === Position.Right;
-	function svg(children: ReactNode) {
+	const s = { transform: flip ? "scaleX(-1)" : undefined } as const;
+	if (type === "one-to-one") {
 		return (
-			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: flip ? "scaleX(-1)" : undefined }}>
-				{children}
+			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
+				<line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<line x1="3" y1="2" x2="3" y2="10" stroke="currentColor" strokeWidth="1.5" />
 			</svg>
 		);
 	}
-	if (type === "one-to-one") {
-		return svg(
-			<><line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="3" y2="10" stroke="currentColor" strokeWidth="1.5" /></>,
-		);
-	}
 	if (type === "many-to-many") {
-		return svg(
-			<><line x1="3" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="9" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="9" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" /></>,
+		return (
+			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
+				<line x1="3" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<line x1="3" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<line x1="3" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<line x1="9" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<line x1="9" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
+			</svg>
 		);
 	}
-	return svg(
-		<><line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="2" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" /><line x1="3" y1="10" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" /></>,
+	return (
+		<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
+			<line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" />
+			<line x1="3" y1="2" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" />
+			<line x1="3" y1="10" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" />
+		</svg>
 	);
 }
 
-const HANDLE_OFFSET: Record<number, string> = {
-	[Position.Right]: "right",
-	[Position.Left]: "left",
-	[Position.Top]: "top",
-	[Position.Bottom]: "bottom",
-};
+
+
+function computeSide(
+	myCx: number,
+	otherNode: { position: { x: number }; width?: number } | undefined,
+	defaultSide = Position.Right,
+): Position {
+	if (!otherNode) return defaultSide;
+	const ox = otherNode.position.x + (otherNode.width ?? 300) / 2;
+	return ox > myCx ? Position.Right : Position.Left;
+}
 
 function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
-	const { table, referencedColumns, columnRelationships } = data;
+	const { table, columnRelationships } = data;
 	const allNodes = useNodes();
 	const allEdges = useEdges();
 
 	const curNode = allNodes.find((n) => n.id === id);
 	const cx = curNode ? curNode.position.x + (curNode.width ?? 300) / 2 : 0;
 
-	const sourceHandleSide = useMemo(() => {
-		let dxSum = 0, count = 0;
-		for (const edge of allEdges) {
-			if (edge.source !== id) continue;
-			const other = allNodes.find((n) => n.id === edge.target);
-			if (other) {
-				const ox = other.position.x + (other.width ?? 300) / 2;
-				dxSum += ox - cx;
-				count++;
-			}
-		}
-		if (count === 0) return Position.Right;
-		return dxSum / count > 0 ? Position.Right : Position.Left;
-	}, [id, allNodes, allEdges, cx]);
-
-	const targetHandleSide = useMemo(() => {
-		let dxSum = 0, count = 0;
-		for (const edge of allEdges) {
-			if (edge.target !== id) continue;
-			const other = allNodes.find((n) => n.id === edge.source);
-			if (other) {
-				const ox = other.position.x + (other.width ?? 300) / 2;
-				dxSum += ox - cx;
-				count++;
-			}
-		}
-		if (count === 0) return Position.Left;
-		return dxSum / count > 0 ? Position.Right : Position.Left;
-	}, [id, allNodes, allEdges, cx]);
-
 	const updateNodeInternals = useUpdateNodeInternals();
-	useEffect(() => {
+
+	// Produce a stable key that changes whenever any connected node moves horizontally
+	const handleLayoutKey = useMemo(() => {
+		return allEdges
+			.filter((e) => e.source === id || e.target === id)
+			.map((e) => {
+				const otherId = e.source === id ? e.target : e.source;
+				const other = allNodes.find((n) => n.id === otherId);
+				if (!other) return `${e.id}:?`;
+				const ox = Math.round(other.position.x + (other.width ?? 300) / 2);
+				return `${e.id}:${ox}`;
+			})
+			.join("|");
+	}, [id, allNodes, allEdges]);
+
+	useLayoutEffect(() => {
 		updateNodeInternals(id);
-	}, [sourceHandleSide, targetHandleSide, id, updateNodeInternals]);
+	}, [handleLayoutKey, id, updateNodeInternals]);
+
+	// Pre-compute edge lookups per column (hooks must be at top level)
+	const sourceEdgesByColumn = useMemo(() => {
+		const map: Record<string, typeof allEdges> = {};
+		for (const col of table.columns) {
+			map[col.name] = allEdges.filter(
+				(e) =>
+					e.source === id &&
+					e.sourceHandle?.startsWith(`col-${col.name}-source-`),
+			);
+		}
+		return map;
+	}, [allEdges, id, table.columns]);
+
+	const targetEdgesByColumn = useMemo(() => {
+		const map: Record<string, typeof allEdges> = {};
+		for (const col of table.columns) {
+			map[col.name] = allEdges.filter(
+				(e) =>
+					e.target === id &&
+					e.targetHandle?.startsWith(`col-${col.name}-target-`),
+			);
+		}
+		return map;
+	}, [allEdges, id, table.columns]);
 
 	return (
 		<div
@@ -139,6 +158,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 				background: "var(--card)",
 				backdropFilter: "blur(6px)",
 				width: 300,
+				overflow: "visible",
 			}}
 		>
 			<div
@@ -159,91 +179,106 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 			</div>
 
 			<div className="divide-y divide-border">
-				{table.columns.map((col) => (
-					<div
-						key={col.name}
-						className="flex items-center gap-2 px-4 py-2 text-xs"
-						style={{
-							position: "relative",
-							background: col.isPrimaryKey
-								? "color-mix(in oklab, var(--primary) 6%, transparent)"
-								: undefined,
-						}}
-					>
-						<div className="flex items-center gap-1 w-5 shrink-0">
-							{col.isPrimaryKey && (
-								<Key className="size-3" style={{ color: "var(--primary)" }} />
-							)}
-							{col.isForeignKey && !col.isPrimaryKey && (
-								<Link2
-									className="size-3"
-									style={{ color: "var(--muted-foreground)" }}
-								/>
-							)}
-							{!col.isPrimaryKey && !col.isForeignKey && col.isUnique && (
-								<Unlink className="size-3 opacity-50" />
-							)}
-						</div>
+				{table.columns.map((col) => {
+					const sourceEdges = sourceEdgesByColumn[col.name] ?? [];
+					const targetEdges = targetEdgesByColumn[col.name] ?? [];
 
-						<span
-							className="flex-1 truncate font-mono"
+					return (
+						<div
+							key={col.name}
+							className="flex items-center gap-2 px-4 py-2 text-xs"
 							style={{
-								color: col.isPrimaryKey
-									? "var(--foreground)"
-									: "var(--muted-foreground)",
+								position: "relative",
+								background: col.isPrimaryKey
+									? "color-mix(in oklab, var(--primary) 6%, transparent)"
+									: undefined,
 							}}
 						>
-							{col.name}
-						</span>
+							<div className="flex items-center gap-1 w-5 shrink-0">
+								{col.isPrimaryKey && (
+									<Key className="size-3" style={{ color: "var(--primary)" }} />
+								)}
+								{col.isForeignKey && !col.isPrimaryKey && (
+									<Link2
+										className="size-3"
+										style={{ color: "var(--muted-foreground)" }}
+									/>
+								)}
+								{!col.isPrimaryKey && !col.isForeignKey && col.isUnique && (
+									<Unlink className="size-3 opacity-50" />
+								)}
+							</div>
 
-						<span
-							className={`rounded px-1.5 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
-						>
-							{col.type}
-						</span>
-
-						{col.notNull && (
-							<span className="text-2xs font-bold shrink-0 text-muted-foreground/60">
-								NN
-							</span>
-						)}
-						{col.defaultValue && (
-							<span className="text-2xs font-mono truncate max-w-20 shrink-0 text-muted-foreground/60">
-								={col.defaultValue}
-							</span>
-						)}
-
-						{referencedColumns.includes(col.name) && (
-							<Handle
-								type="source"
-								position={sourceHandleSide}
-								id={`col-${col.name}-source`}
-								className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0 !size-auto !min-w-0 !min-h-0"
+							<span
+								className="flex-1 truncate font-mono"
 								style={{
-									[HANDLE_OFFSET[sourceHandleSide]]: -2,
-									color: "var(--primary)",
+									color: col.isPrimaryKey
+										? "var(--foreground)"
+										: "var(--muted-foreground)",
 								}}
 							>
-								<SourceSVG side={sourceHandleSide} />
-							</Handle>
-						)}
+								{col.name}
+							</span>
 
-						{col.isForeignKey && (
-							<Handle
-								type="target"
-								position={targetHandleSide}
-								id={`col-${col.name}-target`}
-								className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0 !size-auto !min-w-0 !min-h-0"
-								style={{
-									[HANDLE_OFFSET[targetHandleSide]]: -2,
-									color: "var(--muted-foreground)",
-								}}
+							<span
+								className={`rounded px-1.5 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
 							>
-								<TargetSVG type={columnRelationships[col.name]} side={targetHandleSide} />
-							</Handle>
-						)}
-					</div>
-				))}
+								{col.type}
+							</span>
+
+							{col.notNull && (
+								<span className="text-2xs font-bold shrink-0 text-muted-foreground/60">
+									NN
+								</span>
+							)}
+							{col.defaultValue && (
+								<span className="text-2xs font-mono truncate max-w-20 shrink-0 text-muted-foreground/60">
+									={col.defaultValue}
+								</span>
+							)}
+
+							{/* Per-edge source handles */}
+							{sourceEdges.map((edge) => {
+								const targetNode = allNodes.find((n) => n.id === edge.target);
+								const side = computeSide(cx, targetNode, Position.Right);
+								return (
+									<Handle
+										key={edge.sourceHandle}
+										type="source"
+										position={side}
+										id={edge.sourceHandle!}
+										className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0"
+										style={{ color: "var(--primary)" }}
+									>
+										<SourceSVG side={side} />
+									</Handle>
+								);
+							})}
+
+							{/* Per-edge target handles */}
+							{targetEdges.map((edge) => {
+								const sourceNode = allNodes.find((n) => n.id === edge.source);
+								const side = computeSide(cx, sourceNode, Position.Left);
+								const relType = edge.data?.type as string | undefined;
+								return (
+									<Handle
+										key={edge.targetHandle}
+										type="target"
+										position={side}
+										id={edge.targetHandle!}
+										className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0"
+										style={{ color: "var(--muted-foreground)" }}
+									>
+										<TargetSVG
+											type={relType ?? columnRelationships[col.name]}
+											side={side}
+										/>
+									</Handle>
+								);
+							})}
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);

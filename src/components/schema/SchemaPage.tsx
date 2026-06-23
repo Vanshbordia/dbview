@@ -22,6 +22,7 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "#/components/ui/resizable.tsx";
+import { usePersistedState } from "#/hooks/use-persisted-state.ts";
 import { parseSchema } from "#/lib/schema-parser.ts";
 import type { EdgeStyle } from "#/lib/graph-builder.ts";
 import type { ParsedSchema } from "#/types/schema.ts";
@@ -32,15 +33,15 @@ import SettingsDialog from "./SettingsDialog.tsx";
 
 export default function SchemaPage() {
 	const [schema, setSchema] = useState<ParsedSchema | null>(null);
-	const [editorOpen, setEditorOpen] = useState(true);
-	const [syncEnabled, setSyncEnabled] = useState(false);
+	const [editorOpen, setEditorOpen] = usePersistedState("dbview:editorOpen", true);
+	const [syncEnabled, setSyncEnabled] = usePersistedState("dbview:syncEnabled", false);
 	const syncTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const { theme, setTheme } = useTheme();
 	const panelRef = useRef<PanelImperativeHandle>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const editorRef = useRef<{ setValue: (v: string) => void }>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
-	const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>("bezier");
+	const [edgeStyle, setEdgeStyle] = usePersistedState<EdgeStyle>("dbview:edgeStyle", "bezier");
 	const [activeTableName, setActiveTableName] = useState<string | null>(null);
 
 	const tryRender = useCallback((ddl: string) => {
@@ -63,7 +64,16 @@ export default function SchemaPage() {
 				return;
 			}
 
-			const issues: string[] = [];
+			const allIssues: string[] = [];
+
+			for (const issue of parsed.issues) {
+				allIssues.push(
+					issue.table
+						? `[${issue.table}] ${issue.message}`
+						: issue.message,
+				);
+			}
+
 			for (const table of parsed.tables) {
 				for (const fk of table.foreignKeys) {
 					const refTable = parsed.tables.find(
@@ -72,8 +82,8 @@ export default function SchemaPage() {
 							`${t.schema}.${t.name}` === fk.referencedTable,
 					);
 					if (!refTable) {
-						issues.push(
-							`${table.name}.${fk.column}: table "${fk.referencedTable}" not found`,
+						allIssues.push(
+							`${table.name}.${fk.column}: table "${fk.referencedTable}" not created`,
 						);
 						continue;
 					}
@@ -82,20 +92,20 @@ export default function SchemaPage() {
 							(c) => c.name === fk.referencedColumn,
 						);
 						if (!refCol) {
-							issues.push(
-								`${table.name}.${fk.column}: column "${fk.referencedColumn}" not found in "${refTable.name}"`,
-							);
+allIssues.push(
+							`${table.name}.${fk.column}: column "${fk.referencedColumn}" not found in table "${refTable.name}"`,
+						);
 						}
 					}
 				}
 			}
 
-			if (issues.length > 0) {
-				for (const issue of issues.slice(0, 3)) {
+			if (allIssues.length > 0) {
+				for (const issue of allIssues.slice(0, 3)) {
 					toast.warning(issue);
 				}
-				if (issues.length > 3) {
-					toast.warning(`...and ${issues.length - 3} more issue(s)`);
+				if (allIssues.length > 3) {
+					toast.warning(`...and ${allIssues.length - 3} more issue(s)`);
 				}
 			}
 
