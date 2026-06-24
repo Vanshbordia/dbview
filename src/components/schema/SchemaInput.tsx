@@ -278,9 +278,11 @@ CREATE TABLE employees (
 `;
 
 interface SchemaInputProps {
+	initialDdl?: string;
 	onRender: (ddl: string) => void;
 	onChange?: (ddl: string) => void;
 	onActiveTableChange?: (tableName: string | null) => void;
+	onTableDoubleClick?: (tableName: string) => void;
 }
 
 export interface SchemaInputHandle {
@@ -289,7 +291,7 @@ export interface SchemaInputHandle {
 }
 
 const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
-	function SchemaInput({ onRender, onChange, onActiveTableChange }, ref) {
+	function SchemaInput({ initialDdl, onRender, onChange, onActiveTableChange, onTableDoubleClick }, ref) {
 		const { theme } = useTheme();
 		const editorRef = useRef<HTMLDivElement>(null);
 		const viewRef = useRef<EditorView | null>(null);
@@ -299,6 +301,8 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 		changeCb.current = onChange;
 		const activeTableCb = useRef(onActiveTableChange);
 		activeTableCb.current = onActiveTableChange;
+		const dblClickCb = useRef(onTableDoubleClick);
+		dblClickCb.current = onTableDoubleClick;
 
 		const initialDark =
 			typeof document !== "undefined" &&
@@ -320,7 +324,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 			const dark = initialDark;
 
 			const state = EditorState.create({
-				doc: DEFAULT_DDL,
+				doc: initialDdl ?? DEFAULT_DDL,
 				extensions: [
 					basicSetup,
 					sql(),
@@ -330,6 +334,20 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 					appHighlight,
 					themeCompartment.current.of(dark ? oneDark : []),
 					sqlLinter,
+					EditorView.domEventHandlers({
+						dblclick: (_event, view) => {
+							const pos = view.state.selection.main.head;
+							const line = view.state.doc.lineAt(pos);
+							const text = line.text;
+							const m = text.match(
+								/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+(?:\.\w+)?)/i,
+							);
+							if (m) {
+								const name = m[1].includes(".") ? m[1].split(".")[1] : m[1];
+								dblClickCb.current?.(name);
+							}
+						},
+					}),
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged && changeCb.current) {
 							changeCb.current(update.state.doc.toString());

@@ -20,10 +20,12 @@ import {
 	type LayoutDirection,
 	type TableNodeType,
 } from "#/lib/graph-builder.ts";
+import type { Project } from "#/lib/project-store.ts";
 import type { ParsedSchema, TableSchema } from "#/types/schema.ts";
 import RelationshipEdge from "./RelationshipEdge.tsx";
 import TableInfoPanel from "./TableInfoPanel.tsx";
 import TableNode from "./TableNode.tsx";
+import WelcomeScreen from "./WelcomeScreen.tsx";
 
 const nodeTypes = { table: TableNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -34,15 +36,25 @@ const defaultEdgeOptions = {
 	type: "relationship",
 };
 
+interface FocusTarget {
+	id: string;
+	/** incrementing key ensures the same id can be re-focused */
+	key: number;
+}
+
 interface SchemaGraphProps {
 	schema: ParsedSchema | null;
 	edgeStyle: EdgeStyle;
 	activeTableName?: string | null;
 	onActiveTableChange?: (name: string | null) => void;
 	erroredTables?: Set<string>;
+	projectList: { id: string; name: string }[];
+	onNewProject: () => void;
+	onOpenProject: (id: string) => void;
+	focusTarget?: FocusTarget | null;
 }
 
-export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange, erroredTables }: SchemaGraphProps) {
+export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange, erroredTables, projectList, onNewProject, onOpenProject, focusTarget }: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 	const [layoutDir, setLayoutDir] = useState<LayoutDirection>("TB");
@@ -76,6 +88,23 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 		setNodes(newNodes);
 		setEdges(newEdges);
 	}, [schema, layoutDir, erroredTables, setNodes, setEdges]);
+
+	const focusTimerRef = useRef<ReturnType<typeof setTimeout>>();
+	useEffect(() => {
+		if (schema?.tables.length) {
+			if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+			focusTimerRef.current = setTimeout(() => fitView({ padding: 0.3, duration: 300 }), 0);
+		}
+		return () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current); };
+	}, [schema, fitView]);
+
+	useEffect(() => {
+		if (!focusTarget) return;
+		const node = nodes.find((n) => n.id === focusTarget.id);
+		if (node) {
+			fitView({ nodes: [node], padding: 0.5, duration: 400 });
+		}
+	}, [focusTarget, nodes, fitView]);
 
 	const highlightEdges = useCallback(
 		(nodeId: string | null) => {
@@ -131,14 +160,11 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 
 	if (!schema || schema.tables.length === 0) {
 		return (
-			<div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-				<div className="text-center space-y-2">
-					<p className="font-medium">No schema loaded</p>
-					<p className="text-xs opacity-60">
-						Write DDL in the editor and click Render
-					</p>
-				</div>
-			</div>
+			<WelcomeScreen
+				projectList={projectList}
+				onNewProject={onNewProject}
+				onOpenProject={onOpenProject}
+			/>
 		);
 	}
 
