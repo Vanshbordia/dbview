@@ -1,10 +1,24 @@
 # DBView — Interactive Schema Visualizer
 
-Write SQL DDL, get an instant interactive entity-relationship diagram. Supports **PostgreSQL** and **ClickHouse** dialects with real-time linting, dual-parsing strategy, and full project management — all in the browser.
+Write SQL DDL, get an instant interactive entity-relationship diagram. No signups, no limits, no data leaving your machine.
 
-![Tech Stack](https://img.shields.io/badge/React-19-61DAFB?logo=react) ![TanStack](https://img.shields.io/badge/TanStack-Start-FF4154?logo=react) ![Tailwind](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss) ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript) ![License](https://img.shields.io/badge/license-MIT-green)
+`React 19` `TanStack Start` `Tailwind v4` `TypeScript 6` `React Flow` `CodeMirror 6` `Biome`
 
 ---
+
+## Why DBView?
+
+Schema visualization shouldn't require a SaaS subscription. Existing tools either limit how many tables you can visualize, demand signups, or send your schema to a remote server. DBView is the opposite:
+
+- **Zero setup** — open the page and paste your DDL, that's it
+- **No signups, no accounts, no emails**
+- **Everything stays in your browser** — all data is persisted locally in `localStorage`
+- **No tracking, no telemetry, nothing leaves your device**
+- **No table limits** — visualize schemas of any size
+- **Self-hostable** — build and deploy on your own infrastructure with one command
+- **Free forever**
+
+Built because the need was simple: view database schemas easily, fast, and privately.
 
 ## Features
 
@@ -19,6 +33,12 @@ Write SQL DDL, get an instant interactive entity-relationship diagram. Supports 
 - **Dark / light / system theme** — SSR-safe theme switching with flash prevention
 - **SQL file import** — drag or upload `.sql` / `.txt` files
 - **CodeMirror 6** editor with SQL syntax highlighting, line wrapping, and one-dark theme
+
+## Coming Soon
+
+- MySQL support
+- SQLite support
+- Additional database dialects
 
 ## Tech Stack
 
@@ -84,7 +104,7 @@ src/
 │   └── ui/               # shadcn/ui primitives
 ├── lib/
 │   ├── schema-parser.ts  # SQL parser & linter (both dialects)
-│   ├── type-colors.ts    # Type → color mapping + type simplification
+│   ├── type-colors.ts    # Type to color mapping + type simplification
 │   ├── graph-builder.ts  # Node/edge graph construction & layout
 │   └── project-store.ts  # localStorage persistence
 ├── types/
@@ -105,6 +125,10 @@ Full `CREATE TABLE` syntax including inline and table-level `PRIMARY KEY`, `FORE
 ### ClickHouse
 
 DDL with `ENGINE = ...`, `ORDER BY`, `PARTITION BY`, `SAMPLE BY`, `Nullable()`, `LowCardinality()`, `Enum8/16()`, `Array()`, `Map()`, `Tuple()`, `Nested()`, `IPv4`, `IPv6`, `FixedString`, `DateTime64`, `Date32`, `UInt8`–`UInt256`, `Int8`–`Int256`, `Float32`/`Float64`. Column clauses `CODEC`, `TTL`, `ALIAS`, `MATERIALIZED`, `EPHEMERAL`, `INDEX`, `PROJECTION` are ignored during parsing.
+
+## Privacy
+
+DBView stores everything in your browser's `localStorage`. There are no servers, no databases, no analytics, no tracking. Your schema data never leaves your device. If you want total control, build and self-host the production build on your own infrastructure.
 
 ## License
 
