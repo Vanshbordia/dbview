@@ -1,6 +1,5 @@
 import { Database, FilePlus, FolderOpen } from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
-import type { Project } from "#/lib/project-store.ts";
 
 interface WelcomeScreenProps {
 	projectList: { id: string; name: string }[];

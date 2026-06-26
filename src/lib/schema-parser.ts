@@ -408,10 +408,10 @@ function parseWithLib(
 							const cn = d.column?.column?.expr?.value;
 							if (cn) pks.add(String(cn).toLowerCase());
 						}
-						if (
-							d.resource === "constraint" &&
-							d.constraint_type === "PRIMARY KEY"
-						) {
+					if (
+						d.resource === "constraint" &&
+						d.constraint_type?.toUpperCase() === "PRIMARY KEY"
+					) {
 							for (const ref of d.definition ?? []) {
 								const cn = ref.column?.expr?.value;
 								if (cn) pks.add(String(cn).toLowerCase());

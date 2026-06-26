@@ -63,7 +63,7 @@ export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps)
 							: null;
 						return (
 							<div
-								key={i}
+								key={`${issue.table ?? ""}-${issue.column ?? ""}-${issue.message}`}
 								className="group flex items-start gap-2 w-full text-left px-3 py-1.5 text-xs border-b border-border/40 last:border-b-0"
 							>
 								<button
