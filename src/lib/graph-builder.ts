@@ -22,6 +22,7 @@ export interface TableNodeData extends Record<string, unknown> {
 	referencedColumns: string[];
 	columnRelationships: Record<string, string>;
 	hasError: boolean;
+	subSelected?: boolean;
 }
 
 export interface RelationshipEdgeData extends Record<string, unknown> {
@@ -32,6 +33,9 @@ export interface RelationshipEdgeData extends Record<string, unknown> {
 	sourceTable: string;
 	targetTable: string;
 	edgeStyle: EdgeStyle;
+	highlighted?: boolean;
+	subHighlighted?: boolean;
+	hasSubSelection?: boolean;
 }
 
 export type TableNodeType = Node<TableNodeData, "table">;
@@ -288,28 +292,41 @@ function layoutNodes(
 	const isTB = direction === "TB";
 	const gap = 80;
 	const PAD = 40;
-	// Sort components by size (largest first) so big ones go first
 	layouts.sort((a, b) => (isTB ? b.bb.w - a.bb.w : b.bb.h - a.bb.h));
 
-	const placed: { offset: number; size: number }[] = [];
-	const ROW_MAX = isTB ? 1400 : 800; // max row width (TB) or height (LR)
+	interface RowInfo { offset: number; crossSize: number }
+	const rows: RowInfo[] = [];
+	const layoutAssignments: { rowIdx: number; flowStart: number }[] = [];
+	const ROW_MAX = isTB ? 1400 : 800;
 
 	for (const lay of layouts) {
-		const dim = isTB ? lay.bb.w : lay.bb.h;
-		// Find a row that fits
-		let rowIdx = placed.length;
-		for (let i = 0; i <= placed.length; i++) {
-			if (i === placed.length) { placed.push({ offset: PAD, size: 0 }); rowIdx = i; break; }
-			const row = placed[i];
-			if (row.offset + dim + gap <= ROW_MAX) {
+		const flowDim = isTB ? lay.bb.w : lay.bb.h;
+		const crossDim = isTB ? lay.bb.h : lay.bb.w;
+		let rowIdx = rows.length;
+		for (let i = 0; i <= rows.length; i++) {
+			if (i === rows.length) { rows.push({ offset: PAD, crossSize: 0 }); rowIdx = i; break; }
+			if (rows[i].offset + flowDim + gap <= ROW_MAX) {
 				rowIdx = i;
 				break;
 			}
 		}
-		const row = placed[rowIdx];
-		const dx = isTB ? row.offset : PAD;
-		const dy = isTB ? PAD + rowIdx * (gap + 300) : row.offset; // approx row height 300
-		// Centers within the component are relative to bb.x/bb.y; shift
+		layoutAssignments.push({ rowIdx, flowStart: rows[rowIdx].offset });
+		rows[rowIdx].offset += flowDim + gap;
+		rows[rowIdx].crossSize = Math.max(rows[rowIdx].crossSize, crossDim);
+	}
+
+	const crossOffsets: number[] = [];
+	let cumCross = PAD;
+	for (const row of rows) {
+		crossOffsets.push(cumCross);
+		cumCross += row.crossSize + gap;
+	}
+
+	for (let li = 0; li < layouts.length; li++) {
+		const lay = layouts[li];
+		const { rowIdx, flowStart } = layoutAssignments[li];
+		const dx = isTB ? flowStart : crossOffsets[rowIdx];
+		const dy = isTB ? crossOffsets[rowIdx] : flowStart;
 		for (const [id, c] of lay.centers) {
 			const n = nodes.find((nd) => nd.id === id);
 			if (!n) continue;
@@ -320,7 +337,5 @@ function layoutNodes(
 				y: ny - (n.height ?? 200) / 2,
 			};
 		}
-		row.offset += dim + gap;
-		row.size = Math.max(row.size, isTB ? lay.bb.h : lay.bb.w);
 	}
 }

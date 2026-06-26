@@ -9,7 +9,7 @@ import {
 	useNodesState,
 	useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import type { Edge, Node } from "@xyflow/react";
 import { Maximize2, RefreshCw, Shuffle } from "lucide-react";
@@ -59,9 +59,92 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 	const [layoutDir, setLayoutDir] = useState<LayoutDirection>("TB");
 	const [selectedTable, setSelectedTable] = useState<TableSchema | null>(null);
-	const { fitView } = useReactFlow();
+	const [subSelectedId, setSubSelectedId] = useState<string | null>(null);
+	const { fitView, fitBounds, getNodesBounds } = useReactFlow();
 	const edgeStyleRef = useRef(edgeStyle);
 	edgeStyleRef.current = edgeStyle;
+
+	const highlightEdges = useCallback(
+		(nodeId: string | null) => {
+			setEdges((prev) =>
+				prev.map((e) => {
+					if (!nodeId) {
+						const { highlighted, subHighlighted, hasSubSelection, ...rest } = e.data ?? {};
+						return {
+							...e,
+							data: Object.keys(rest).length > 0 ? rest : undefined,
+						};
+					}
+					const match = e.source === nodeId || e.target === nodeId;
+					return {
+						...e,
+						data: { ...(e.data ?? {}), highlighted: match, subHighlighted: false, hasSubSelection: false },
+					};
+				}),
+			);
+		},
+		[setEdges],
+	);
+
+	const subHighlightEdge = useCallback(
+		(selectedId: string, otherId: string) => {
+			setEdges((prev) =>
+				prev.map((e) => {
+					const isConnected = (e.source === selectedId && e.target === otherId) || (e.source === otherId && e.target === selectedId);
+					return {
+						...e,
+						data: { ...(e.data ?? {}), subHighlighted: isConnected, hasSubSelection: true },
+					};
+				}),
+			);
+		},
+		[setEdges],
+	);
+
+	const clearSubHighlight = useCallback(() => {
+		setEdges((prev) =>
+			prev.map((e) => {
+				const { subHighlighted, hasSubSelection, ...rest } = e.data ?? {};
+				return {
+					...e,
+					data: Object.keys(rest).length > 0 ? rest : undefined,
+				};
+			}),
+		);
+		setSubSelectedId(null);
+	}, [setEdges]);
+
+	const incomingRefs = useMemo(() => {
+		if (!schema || !selectedTable) return [];
+		return schema.tables.flatMap((t) =>
+			t.foreignKeys
+				.filter((fk) => {
+					const refName = fk.referencedTable.includes(".") ? fk.referencedTable.split(".")[1] : fk.referencedTable;
+					return refName === selectedTable.name;
+				})
+				.map((fk) => ({
+					fromTable: t.name,
+					fromColumn: fk.column,
+					toColumn: fk.referencedColumn,
+				})),
+		);
+	}, [schema, selectedTable]);
+
+	const handleRefClick = useCallback(
+		(tableName: string) => {
+			if (!schema || !selectedTable) return;
+			const currentId = selectedTable.name;
+			if (tableName === subSelectedId) {
+				clearSubHighlight();
+				return;
+			}
+			setSubSelectedId(tableName);
+			subHighlightEdge(currentId, tableName);
+			const bounds = getNodesBounds([currentId, tableName]);
+			fitBounds(bounds, { padding: 0.5, duration: 400 });
+		},
+		[schema, selectedTable, subSelectedId, getNodesBounds, fitBounds, subHighlightEdge, clearSubHighlight],
+	);
 
 	useEffect(() => {
 		if (!schema || schema.tables.length === 0) {
@@ -81,6 +164,15 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 		);
 		highlightEdges(activeTableName ?? null);
 	}, [activeTableName, setNodes, setEdges]);
+
+	useEffect(() => {
+		setNodes((nds) =>
+			nds.map((n) => ({
+				...n,
+				data: { ...(n.data ?? {}), subSelected: n.id === subSelectedId },
+			})),
+		);
+	}, [subSelectedId, setNodes]);
 
 	const handleRelayout = useCallback(() => {
 		if (!schema) return;
@@ -106,28 +198,6 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 		}
 	}, [focusTarget, nodes, fitView]);
 
-	const highlightEdges = useCallback(
-		(nodeId: string | null) => {
-			setEdges((prev) =>
-				prev.map((e) => {
-					if (!nodeId) {
-						const { highlighted, ...rest } = e.data ?? {};
-						return {
-							...e,
-							data: Object.keys(rest).length > 0 ? rest : undefined,
-						};
-					}
-					const match = e.source === nodeId || e.target === nodeId;
-					return {
-						...e,
-						data: { ...(e.data ?? {}), highlighted: match },
-					};
-				}),
-			);
-		},
-		[setEdges],
-	);
-
 	const onConnect = useCallback(() => {
 		/* no-op */
 	}, []);
@@ -137,6 +207,7 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			const tableNode = node as TableNodeType;
 			if (tableNode.data?.table) {
 				setSelectedTable(tableNode.data.table);
+				setSubSelectedId(null);
 				highlightEdges(node.id);
 				onActiveTableChange?.(node.id);
 			}
@@ -146,6 +217,7 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 
 	const onPaneClick = useCallback(() => {
 		setSelectedTable(null);
+		setSubSelectedId(null);
 		highlightEdges(null);
 		onActiveTableChange?.(null);
 	}, [highlightEdges, onActiveTableChange]);
@@ -198,6 +270,8 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			/>
 			<Controls className="!bg-card !border-border !shadow-sm" />
 			<MiniMap
+				pannable
+				zoomable
 				nodeStrokeWidth={2}
 				nodeColor="var(--primary)"
 				maskColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
@@ -240,7 +314,9 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 				<Panel position="top-right">
 					<TableInfoPanel
 						table={selectedTable}
-						onClose={() => setSelectedTable(null)}
+						incomingRefs={incomingRefs}
+						onClose={() => { setSelectedTable(null); setSubSelectedId(null); highlightEdges(null); onActiveTableChange?.(null); }}
+						onRefClick={handleRefClick}
 					/>
 				</Panel>
 			)}

@@ -26,6 +26,8 @@
   --border: oklch(0.9276 0.0058 264.5313);
   --input: oklch(0.9276 0.0058 264.5313);
   --ring: oklch(0.6231 0.1880 259.8145);
+  --edge-ref: oklch(0.7015 0.1650 55.0000);
+  --edge-ref-foreground: oklch(0.2500 0 0);
   --chart-1: oklch(0.6231 0.1880 259.8145);
   --chart-2: oklch(0.5461 0.2152 262.8809);
   --chart-3: oklch(0.4882 0.2172 264.3763);
@@ -81,6 +83,8 @@
   --border: oklch(0.3715 0 0);
   --input: oklch(0.3715 0 0);
   --ring: oklch(0.6231 0.1880 259.8145);
+  --edge-ref: oklch(0.7015 0.1650 55.0000);
+  --edge-ref-foreground: oklch(0.2500 0 0);
   --chart-1: oklch(0.7137 0.1434 254.6240);
   --chart-2: oklch(0.6231 0.1880 259.8145);
   --chart-3: oklch(0.5461 0.2152 262.8809);
@@ -186,7 +190,11 @@
 }
 
 .edge-highlighted {
-	animation: marching-ants 0.6s linear infinite;
+  animation: marching-ants 0.6s linear infinite;
+}
+
+.edge-sub-highlighted {
+  animation: marching-ants 0.5s linear infinite;
 }
 
 .react-flow__controls {

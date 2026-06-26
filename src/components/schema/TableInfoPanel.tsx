@@ -1,12 +1,20 @@
-import { Key, Link2, Unlink, X } from "lucide-react";
+import { Gem, Key, Link2, X } from "lucide-react";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Separator } from "#/components/ui/separator.tsx";
 import type { TableSchema } from "#/types/schema.ts";
 
+interface IncomingRef {
+	fromTable: string;
+	fromColumn: string;
+	toColumn: string;
+}
+
 interface TableInfoPanelProps {
 	table: TableSchema;
+	incomingRefs?: IncomingRef[];
 	onClose: () => void;
+	onRefClick?: (tableName: string) => void;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -53,7 +61,9 @@ function getTypeColor(type: string): string {
 
 export default function TableInfoPanel({
 	table,
+	incomingRefs = [],
 	onClose,
+	onRefClick,
 }: TableInfoPanelProps) {
 	const referencing = table.foreignKeys;
 	const colCount = table.columns.length;
@@ -125,7 +135,7 @@ export default function TableInfoPanel({
 										/>
 									)}
 									{!col.isPrimaryKey && !col.isForeignKey && col.isUnique && (
-										<Unlink className="size-2.5 opacity-50" />
+										<Gem className="size-2.5 opacity-50" />
 									)}
 								</div>
 								<span className="flex-1 font-mono truncate text-foreground">
@@ -156,16 +166,43 @@ export default function TableInfoPanel({
 							</h4>
 							<div className="space-y-1">
 								{referencing.map((fk) => (
-									<div
+									<button
 										key={fk.column}
-										className="flex items-center gap-2 py-1 px-2 rounded-md text-xs bg-muted/30"
+										type="button"
+										onClick={() => onRefClick?.(fk.referencedTable.includes(".") ? fk.referencedTable.split(".")[1] : fk.referencedTable)}
+										className="flex items-center gap-2 py-1 px-2 rounded-md text-xs bg-muted/30 hover:bg-accent/20 transition-colors w-full text-left cursor-pointer group"
 									>
-										<Link2 className="size-2.5 shrink-0 text-muted-foreground" />
+										<Link2 className="size-2.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground" />
 										<span className="font-mono">{fk.column}</span>
-										<span className="opacity-50 text-2xs text-muted-foreground/60">
+										<span className="opacity-50 text-2xs text-muted-foreground/60 group-hover:text-accent-foreground/70">
 											→ {fk.referencedTable}.{fk.referencedColumn}
 										</span>
-									</div>
+									</button>
+								))}
+							</div>
+						</>
+					)}
+
+					{incomingRefs.length > 0 && (
+						<>
+							<Separator className="my-2" />
+							<h4 className="text-2xs font-bold uppercase tracking-wider mb-2 text-muted-foreground">
+								Referenced By
+							</h4>
+							<div className="space-y-1">
+								{incomingRefs.map((ref) => (
+									<button
+										key={`${ref.fromTable}.${ref.fromColumn}`}
+										type="button"
+										onClick={() => onRefClick?.(ref.fromTable)}
+										className="flex items-center gap-2 py-1 px-2 rounded-md text-xs bg-muted/30 hover:bg-accent/20 transition-colors w-full text-left cursor-pointer group"
+									>
+										<Link2 className="size-2.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground" />
+										<span className="font-mono">{ref.fromTable}.{ref.fromColumn}</span>
+										<span className="opacity-50 text-2xs text-muted-foreground/60 group-hover:text-accent-foreground/70">
+											→ {ref.toColumn}
+										</span>
+									</button>
 								))}
 							</div>
 						</>

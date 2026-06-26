@@ -1,5 +1,5 @@
 import { Handle, type NodeProps, Position, useNodes, useEdges, useUpdateNodeInternals } from "@xyflow/react";
-import { Braces, Key, Link2, Unlink } from "lucide-react";
+import { Braces, Gem, Key, Link2 } from "lucide-react";
 import { memo, useLayoutEffect, useMemo } from "react";
 import type { TableNodeType } from "#/lib/graph-builder.ts";
 
@@ -95,7 +95,7 @@ function computeSide(
 }
 
 function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
-	const { table, columnRelationships, hasError } = data;
+	const { table, columnRelationships, hasError, subSelected } = data;
 	const allNodes = useNodes();
 	const allEdges = useEdges();
 
@@ -152,19 +152,22 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 			className={`rounded-xl border-2 shadow-lg backdrop-blur-sm transition-all duration-150 ${
 				selected
 					? "border-zinc-400 dark:border-zinc-500 shadow-zinc-400/30 dark:shadow-zinc-500/30"
-					: hasError
-						? "border-red-400 dark:border-red-500 shadow-red-400/20 dark:shadow-red-500/20"
-						: "border-zinc-200 dark:border-zinc-700/60 shadow-zinc-900/10"
+					: subSelected
+						? "shadow-amber-400/20 dark:shadow-amber-500/20"
+						: hasError
+							? "border-red-400 dark:border-red-500 shadow-red-400/20 dark:shadow-red-500/20"
+							: "border-zinc-200 dark:border-zinc-700/60 shadow-zinc-900/10"
 			}`}
 			style={{
 				background: "var(--card)",
 				backdropFilter: "blur(6px)",
 				width: 300,
-				overflow: "visible",
+				overflow: "hidden",
+				...(subSelected && !selected ? { borderColor: "var(--edge-ref)" } : {}),
 			}}
 		>
 			<div
-				className="flex items-center gap-2 px-4 py-3 text-sm font-semibold tracking-tight border-b cursor-pointer"
+				className="flex items-center gap-2 px-4 py-3 text-sm font-semibold tracking-tight border-b cursor-pointer rounded-t-xl"
 				style={{
 					background: "var(--card)",
 					borderColor: "var(--border)",
@@ -207,7 +210,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 									/>
 								)}
 								{!col.isPrimaryKey && !col.isForeignKey && col.isUnique && (
-									<Unlink className="size-3 opacity-50" />
+									<Gem className="size-3 opacity-50" />
 								)}
 							</div>
 
