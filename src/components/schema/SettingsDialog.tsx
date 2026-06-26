@@ -58,12 +58,12 @@ export default function SettingsDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px] lg:max-w-[800px]">
+			<DialogContent className="overflow-hidden p-0 md:max-h-125 md:max-w-175 lg:max-w-200">
 				<DialogTitle className="sr-only">Settings</DialogTitle>
 				<DialogDescription className="sr-only">
 					Customize your settings here.
 				</DialogDescription>
-				<div className="flex h-[480px]">
+				<div className="flex h-120">
 					<nav className="hidden md:flex w-48 shrink-0 border-r p-2 flex-col gap-1">
 						{NAV_ITEMS.map((item) => {
 							const Icon = item.icon;
@@ -73,7 +73,7 @@ export default function SettingsDialog({
 									type="button"
 									onClick={() => setActiveNav(item.id)}
 									data-active={activeNav === item.id ? "" : undefined}
-									className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent data-[active]:text-accent-foreground"
+									className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:text-accent-foreground"
 								>
 									<Icon className="size-4 shrink-0" />
 									{item.label}
@@ -141,7 +141,7 @@ function AppearanceSection({
 							type="button"
 							onClick={() => setTheme(opt.value)}
 							data-active={theme === opt.value ? "" : undefined}
-							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[active]:border-primary data-[active]:bg-accent"
+							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-active:border-primary data-active:bg-accent"
 						>
 							{opt.label}
 						</button>
@@ -195,7 +195,7 @@ function ProjectSection({
 							type="button"
 							onClick={() => onDatabaseTypeChange(opt.value)}
 							data-active={databaseType === opt.value ? "" : undefined}
-							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground data-[active]:border-primary data-[active]:bg-accent"
+							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground data-active:border-primary data-active:bg-accent"
 						>
 							<div className="flex items-start gap-3">
 								<img
@@ -244,7 +244,7 @@ function GraphSection({
 							type="button"
 							onClick={() => onEdgeStyleChange(opt.value)}
 							data-active={edgeStyle === opt.value ? "" : undefined}
-							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground data-[active]:border-primary data-[active]:bg-accent"
+							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground data-active:border-primary data-active:bg-accent"
 						>
 							<span className="text-sm font-medium block">{opt.label}</span>
 							<span className="text-xs text-muted-foreground mt-0.5 block">

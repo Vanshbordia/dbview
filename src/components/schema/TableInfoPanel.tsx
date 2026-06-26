@@ -101,7 +101,7 @@ export default function TableInfoPanel({
 									{col.name}
 								</span>
 								<span
-									className={`max-w-[180px] truncate shrink-0 rounded px-1 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
+									className={`max-w-45 truncate shrink-0 rounded px-1 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
 									title={col.type}
 								>
 									{col.type}
@@ -117,7 +117,7 @@ export default function TableInfoPanel({
 								{col.defaultValue && (
 									<Badge
 										variant="secondary"
-										className="max-w-[100px] truncate shrink-0 text-3xs h-3.5 px-1 leading-none font-mono"
+										className="max-w-25 truncate shrink-0 text-3xs h-3.5 px-1 leading-none font-mono"
 										title={`default ${col.defaultValue}`}
 									>
 										{col.defaultValue}

@@ -215,7 +215,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 										type="source"
 										position={side}
 										id={edge.sourceHandle!}
-										className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0"
+								className="flex! items-center! justify-center! rounded-none! border-none! bg-transparent! p-0!"
 										style={{ color: "var(--primary)" }}
 									>
 										<SourceSVG side={side} />
@@ -234,7 +234,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 										type="target"
 										position={side}
 										id={edge.targetHandle!}
-										className="!flex !items-center !justify-center !rounded-none !border-none !bg-transparent !p-0"
+										className="flex! items-center! justify-center! rounded-none! border-none! bg-transparent! p-0!"
 										style={{ color: "var(--muted-foreground)" }}
 									>
 										<TargetSVG

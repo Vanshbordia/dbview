@@ -1,0 +1,30 @@
+language: "en-US"
+early_access: false
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "**/*.{ts,tsx}"
+      instructions: "Follow the project's Biome configuration for formatting. Use strict TypeScript patterns. Prefer functional components with hooks over class components."
+  path_filters:
+    - "!dist/**"
+    - "!node_modules/**"
+  tools:
+    biome:
+      enabled: true
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: false
+    ruff:
+      enabled: false
+    eslint:
+      enabled: false
+chat:
+  auto_reply: true
