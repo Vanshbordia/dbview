@@ -1,6 +1,7 @@
 import nodeSqlParser from "node-sql-parser";
 import type {
 	ColumnSchema,
+	DatabaseType,
 	ForeignKey,
 	ParsedSchema,
 	SchemaIssue,
@@ -33,10 +34,241 @@ const VALID_PG_TYPES = new Set([
 	"CSTRING", "INTERNAL", "LANGUAGE_HANDLER", "RECORD", "TRIGGER", "VOID",
 ]);
 
+const VALID_CH_TYPES = new Set([
+	"INT8", "INT16", "INT32", "INT64", "INT128", "INT256",
+	"UINT8", "UINT16", "UINT32", "UINT64", "UINT128", "UINT256",
+	"FLOAT32", "FLOAT64",
+	"DECIMAL", "DECIMAL32", "DECIMAL64", "DECIMAL128", "DECIMAL256",
+	"BOOLEAN",
+	"STRING", "FIXEDSTRING",
+	"UUID",
+	"DATE", "DATE32",
+	"DATETIME", "DATETIME64",
+	"ENUM8", "ENUM16",
+	"ARRAY",
+	"MAP",
+	"NULLABLE",
+	"LOWCARDINALITY",
+	"TUPLE",
+	"NESTED",
+	"IPV4", "IPV6",
+	"POINT", "RING", "POLYGON", "MULTIPOLYGON",
+	"SIMPLEAGGREGATEFUNCTION",
+]);
+
+const VALID_TYPES_BY_DIALECT: Record<DatabaseType, Set<string>> = {
+	postgresql: VALID_PG_TYPES,
+	clickhouse: VALID_CH_TYPES,
+};
+
+const PARSER_DIALECT: Record<DatabaseType, string> = {
+	postgresql: "postgresql",
+	clickhouse: "postgresql",
+};
+
+export const DEFAULT_SCHEMA_NAME: Record<DatabaseType, string> = {
+	postgresql: "public",
+	clickhouse: "default",
+};
+
+export const DEFAULT_DDL: Record<DatabaseType, string> = {
+	postgresql: `CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  display_name VARCHAR(255),
+  bio TEXT,
+  metadata JSONB DEFAULT '{}',
+  rating NUMERIC(3,2) DEFAULT 0.00,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE profiles (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
+  avatar_url VARCHAR(500),
+  website VARCHAR(255),
+  birthday DATE,
+  phone VARCHAR(20)
+);
+
+CREATE TABLE posts (
+  id SERIAL PRIMARY KEY,
+  author_id INTEGER NOT NULL REFERENCES users(id),
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(300) UNIQUE NOT NULL,
+  body TEXT NOT NULL,
+  excerpt TEXT,
+  published BOOLEAN DEFAULT FALSE,
+  rating NUMERIC(2,1) DEFAULT 0.0,
+  views INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE comments (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER NOT NULL REFERENCES posts(id),
+  author_id INTEGER NOT NULL REFERENCES users(id),
+  parent_id INTEGER REFERENCES comments(id),
+  body TEXT NOT NULL,
+  depth INTEGER DEFAULT 0,
+  upvotes INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE tags (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) UNIQUE NOT NULL,
+  color VARCHAR(7) DEFAULT '#6366f1'
+);
+
+CREATE TABLE posts_tags (
+  post_id INTEGER NOT NULL REFERENCES posts(id),
+  tag_id INTEGER NOT NULL REFERENCES tags(id),
+  PRIMARY KEY (post_id, tag_id)
+);
+
+CREATE TABLE customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL
+);
+
+CREATE TABLE orders (
+  id SERIAL PRIMARY KEY,
+  customer_id UUID NOT NULL REFERENCES customers(id),
+  status VARCHAR(50) DEFAULT 'pending',
+  total NUMERIC(10,2) NOT NULL,
+  ordered_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  price NUMERIC(10,2) NOT NULL,
+  stock INTEGER DEFAULT 0
+);
+
+CREATE TABLE order_items (
+  id SERIAL PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  quantity INTEGER NOT NULL DEFAULT 1,
+  unit_price NUMERIC(10,2) NOT NULL,
+  UNIQUE (order_id, product_id)
+);
+
+CREATE TABLE departments (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  budget NUMERIC(12,2)
+);
+
+CREATE TABLE employees (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  manager_id INTEGER REFERENCES employees(id),
+  department_id INTEGER NOT NULL REFERENCES departments(id),
+  salary NUMERIC(10,2),
+  hired_at DATE DEFAULT CURRENT_DATE
+);`,
+	clickhouse: `CREATE TABLE users (
+  id UInt64,
+  email String,
+  username String,
+  display_name Nullable(String),
+  bio Nullable(String),
+  metadata String DEFAULT '{}',
+  rating Float64 DEFAULT 0.00,
+  is_active UInt8 DEFAULT 1,
+  created_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE profiles (
+  id UInt64,
+  user_id UInt64,
+  avatar_url Nullable(String),
+  website Nullable(String),
+  birthday Nullable(Date),
+  phone Nullable(String)
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE posts (
+  id UInt64,
+  author_id UInt64,
+  title String,
+  slug String,
+  body String,
+  excerpt Nullable(String),
+  published UInt8 DEFAULT 0,
+  rating Float64 DEFAULT 0.0,
+  views UInt64 DEFAULT 0,
+  created_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE comments (
+  id UInt64,
+  post_id UInt64,
+  author_id UInt64,
+  parent_id Nullable(UInt64),
+  body String,
+  depth UInt64 DEFAULT 0,
+  upvotes UInt64 DEFAULT 0,
+  created_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE tags (
+  id UInt64,
+  name String,
+  color String DEFAULT '#6366f1'
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE events (
+  id UUID,
+  event_name String,
+  event_date Date,
+  payload String,
+  created_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree()
+ORDER BY id;
+
+CREATE TABLE page_views (
+  user_id UInt64,
+  page_url String,
+  duration Float64,
+  timestamp DateTime
+)
+ENGINE = MergeTree()
+ORDER BY (timestamp, user_id);
+
+CREATE TABLE orders (
+  id UInt64,
+  customer_id UInt64,
+  status String DEFAULT 'pending',
+  total Float64,
+  ordered_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree()
+ORDER BY id;`,
+};
+
 function normalizeType(raw: string): string {
 	return raw
 		.replace(/\[.*?\]/g, "")
-		.replace(/\(.*?\)/g, "")
+		.replace(/\(.*\)/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
 }
@@ -142,10 +374,13 @@ function extractFksLib(
 function parseWithLib(
 	cleaned: string,
 	issues: SchemaIssue[],
+	databaseType: DatabaseType,
 ): TableSchema[] {
 	const p = new Parser();
 	const tables: TableSchema[] = [];
 	const tableMap = new Map<string, TableSchema>();
+	const parserDialect = PARSER_DIALECT[databaseType];
+	const defaultSchema = DEFAULT_SCHEMA_NAME[databaseType];
 
 	const stmts = cleaned
 		.split(";")
@@ -154,7 +389,7 @@ function parseWithLib(
 
 	for (const stmt of stmts) {
 		try {
-			const ast = p.astify(stmt, { database: "postgresql" });
+			const ast = p.astify(stmt, { database: parserDialect });
 			const arr = Array.isArray(ast) ? ast : [ast];
 			for (const node of arr) {
 				if (node.type === "create" && node.keyword === "table") {
@@ -163,7 +398,7 @@ function parseWithLib(
 					const name = String(info.table).toLowerCase();
 					const schema = info.db
 						? String(info.db).toLowerCase()
-						: "public";
+						: defaultSchema;
 					const defs = node.create_definitions ?? [];
 
 					// Collect PKs from inline + constraint
@@ -311,12 +546,14 @@ function extractBody(text: string): string | null {
 function parseCreateTable(
 	block: string,
 	issues: SchemaIssue[],
+	databaseType: DatabaseType = "postgresql",
 ): TableSchema | null {
 	CREATE_TABLE_RE.lastIndex = 0;
 	const match = CREATE_TABLE_RE.exec(block);
 	if (!match) return null;
 
-	const schema = match[1]?.toLowerCase() ?? "public";
+	const defaultSchema = DEFAULT_SCHEMA_NAME[databaseType];
+	const schema = match[1]?.toLowerCase() ?? defaultSchema;
 	const name = match[2].toLowerCase();
 	const body = extractBody(block);
 	if (!body) return null;
@@ -419,7 +656,7 @@ function parseCreateTable(
 			continue;
 		}
 
-		const column = parseColumn(trimmed, issues, name);
+		const column = parseColumn(trimmed, issues, name, databaseType);
 		if (column) {
 			tables[name].columns.push(column);
 		} else if (!/^\s*$/.test(trimmed)) {
@@ -471,6 +708,7 @@ function parseColumn(
 	line: string,
 	issues?: SchemaIssue[],
 	tableName?: string,
+	databaseType: DatabaseType = "postgresql",
 ): ColumnSchema | null {
 	const trimmed = line.replace(/,$/, "").trim();
 	if (!trimmed) return null;
@@ -484,8 +722,8 @@ function parseColumn(
 	let idx = 2;
 	while (
 		idx < parts.length &&
-		!/^(PRIMARY|REFERENCES|UNIQUE|NOT|DEFAULT|CONSTRAINT)$/i.test(
-			parts[idx],
+		!/^(PRIMARY|REFERENCES|UNIQUE|NOT|DEFAULT|CONSTRAINT|CODEC|TTL|ALIAS|MATERIALIZED|EPHEMERAL|INDEX|PROJECTION|ORDER|SIGNED|UNSIGNED)$/i.test(
+			parts[idx].replace(/\(.*/i, ""),
 		)
 	) {
 		type += ` ${parts[idx].toUpperCase()}`;
@@ -524,6 +762,9 @@ function parseColumn(
 			/\bON\s+(DELETE|UPDATE)\s+(CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/gi,
 			"",
 		);
+		remaining = remaining.replace(/\bCODEC\s*\([^)]*\)/gi, "");
+		remaining = remaining.replace(/\bTTL\s+\S+(?:\s+TO\s+\S+)?/gi, "");
+		remaining = remaining.replace(/\b(?:ALIAS|MATERIALIZED|EPHEMERAL|SIGNED|UNSIGNED|INDEX|PROJECTION)\b/gi, "");
 		remaining = remaining.replace(/\s+/g, " ").trim();
 		if (remaining) {
 			issues.push({
@@ -534,7 +775,8 @@ function parseColumn(
 			});
 		}
 		const normalized = normalizeType(type);
-		if (!VALID_PG_TYPES.has(normalized)) {
+		const validTypes = VALID_TYPES_BY_DIALECT[databaseType];
+		if (!validTypes.has(normalized)) {
 			issues.push({
 				type: "warning",
 				message: `Unrecognized type "${type}" for column "${name}"`,
@@ -580,8 +822,10 @@ const ALTER_FK_RE =
 function parseWithCustom(
 	cleaned: string,
 	issues: SchemaIssue[],
+	databaseType: DatabaseType = "postgresql",
 ): TableSchema[] {
 	const tables: Map<string, TableSchema> = new Map();
+	const defaultSchema = DEFAULT_SCHEMA_NAME[databaseType];
 
 	const createBlockRe =
 		/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)\s*\(/gi;
@@ -624,7 +868,7 @@ function parseWithCustom(
 
 	for (const block of blocks) {
 		if (/create\s+table/i.test(block)) {
-			const table = parseCreateTable(block, issues);
+			const table = parseCreateTable(block, issues, databaseType);
 			if (table) {
 				tables.set(`${table.schema}.${table.name}`, table);
 			}
@@ -642,7 +886,7 @@ function parseWithCustom(
 		const refTableSchema = (alterMatch[5] ?? "").toLowerCase();
 		const refTable = alterMatch[6].toLowerCase();
 		const refCol = alterMatch[7].toLowerCase();
-		const fullName = `${refSchema || "public"}.${tableName}`;
+		const fullName = `${refSchema || defaultSchema}.${tableName}`;
 		const table = tables.get(fullName) || tables.get(tableName);
 		if (table) {
 			const existingFk = table.foreignKeys.find((f) => f.column === fkCol);
@@ -676,7 +920,7 @@ function parseWithCustom(
 
 /* ---------- Linting for library-parsed tables ---------- */
 
-function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[]): void {
+function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[], databaseType: DatabaseType = "postgresql"): void {
 	for (const table of tables) {
 		const safe = table.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 		const nameRe = new RegExp(
@@ -692,37 +936,48 @@ function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[]): 
 			const trimmed = line.trim();
 			if (!trimmed || trimmed === ",") continue;
 			if (
-				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check)\b/i.test(trimmed)
+				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(trimmed)
 			) continue;
-			parseColumn(trimmed, issues, table.name);
+			parseColumn(trimmed, issues, table.name, databaseType);
 		}
 	}
 }
 
 /* ---------- Public API ---------- */
 
-export function parseSchema(ddl: string): ParsedSchema {
+const CLICKHOUSE_PATTERN =
+	/\b(?:ENGINE\s*=|ORDER\s+BY|PARTITION\s+BY|SAMPLE\s+BY|LOWCARDINALITY|NULLABLE\s*\(|U?INT(?:8|16|32|64|128|256)\b|FLOAT(?:32|64)\b|DATETIME64|DATE32|ENUM[816]|ARRAY\s*\(|MAP\s*\(|TUPLE\s*\(|NESTED\s*\(|IPV[46]\b|(?:\w+)?(?:MergeTree|ReplicatedMergeTree|SummingMergeTree|AggregatingMergeTree|ReplacingMergeTree|CollapsingMergeTree|VersionedCollapsingMergeTree|GraphiteMergeTree|Distributed|Buffer|Memory|File|Merge|View|MaterializedView|Set|Join)\s*\()/i;
+
+function detectDatabaseType(ddl: string): DatabaseType {
+	return CLICKHOUSE_PATTERN.test(ddl) ? "clickhouse" : "postgresql";
+}
+
+export function parseSchema(ddl: string, databaseType?: DatabaseType): ParsedSchema {
 	const cleaned = stripComments(ddl);
+	const dbType = databaseType ?? detectDatabaseType(cleaned);
 	const issues: SchemaIssue[] = [];
 
 	// Try the library parser first — gives accurate AST + catches real SQL errors
-	const libTables = parseWithLib(cleaned, issues);
+	const libIssueStart = issues.length;
+	const libTables = parseWithLib(cleaned, issues, dbType);
 
 	if (libTables.length > 0) {
 		// Run column-level linting on library-parsed tables
-		lintTables(libTables, cleaned, issues);
+		lintTables(libTables, cleaned, issues, dbType);
 		return { tables: libTables, issues };
 	}
 
-	// Fall back to our custom parser if library could not extract any tables
-	const fallbackTables = parseWithCustom(cleaned, issues);
+	// Library parser produced no tables — discard its issues and use fallback
+	issues.splice(libIssueStart);
+	const fallbackTables = parseWithCustom(cleaned, issues, dbType);
 	return { tables: fallbackTables, issues };
 }
 
 /* ---------- Fast linter for editor typing (no node-sql-parser) ---------- */
 
-export function lintQuick(ddl: string): SchemaIssue[] {
+export function lintQuick(ddl: string, databaseType?: DatabaseType): SchemaIssue[] {
 	const cleaned = stripComments(ddl);
+	const dbType = databaseType ?? detectDatabaseType(cleaned);
 	const issues: SchemaIssue[] = [];
 	const tableRegex = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)\s*\(/gi;
 	let m: RegExpExecArray | null;
@@ -734,8 +989,8 @@ export function lintQuick(ddl: string): SchemaIssue[] {
 		for (const line of lines) {
 			const trimmed = line.trim();
 			if (!trimmed || trimmed === ",") continue;
-			if (/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check)\b/i.test(trimmed)) continue;
-			parseColumn(trimmed, issues, name);
+			if (/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(trimmed)) continue;
+			parseColumn(trimmed, issues, name, databaseType);
 		}
 	}
 	return issues;

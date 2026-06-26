@@ -2,6 +2,7 @@ import { Gem, Key, Link2, X } from "lucide-react";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { Separator } from "#/components/ui/separator.tsx";
+import { getTypeColor } from "#/lib/type-colors.ts";
 import type { TableSchema } from "#/types/schema.ts";
 
 interface IncomingRef {
@@ -15,48 +16,6 @@ interface TableInfoPanelProps {
 	incomingRefs?: IncomingRef[];
 	onClose: () => void;
 	onRefClick?: (tableName: string) => void;
-}
-
-const TYPE_COLORS: Record<string, string> = {
-	SERIAL:
-		"bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-	INTEGER: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
-	BIGINT: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
-	SMALLINT: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
-	UUID: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-	BOOLEAN: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
-	VARCHAR:
-		"bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-	TEXT: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-	CHAR: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-	TIMESTAMP:
-		"bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-	DATE: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-	TIME: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-	NUMERIC:
-		"bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-	DECIMAL:
-		"bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-	FLOAT:
-		"bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-	DOUBLE:
-		"bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-	REAL: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-	JSON: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
-	JSONB: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
-	BYTEA: "bg-stone-100 text-stone-800 dark:bg-stone-900/40 dark:text-stone-300",
-	OID: "bg-stone-100 text-stone-800 dark:bg-stone-900/40 dark:text-stone-300",
-};
-
-function getTypeColor(type: string): string {
-	const base = type
-		.replace(/\(.*\)/, "")
-		.trim()
-		.toUpperCase();
-	return (
-		TYPE_COLORS[base] ??
-		"bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-	);
 }
 
 export default function TableInfoPanel({
@@ -142,7 +101,8 @@ export default function TableInfoPanel({
 									{col.name}
 								</span>
 								<span
-									className={`rounded px-1 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
+									className={`max-w-[180px] truncate shrink-0 rounded px-1 py-0.5 text-2xs font-medium leading-none ${getTypeColor(col.type)}`}
+									title={col.type}
 								>
 									{col.type}
 								</span>
@@ -152,6 +112,15 @@ export default function TableInfoPanel({
 										className="text-3xs h-3.5 px-1 leading-none"
 									>
 										NN
+									</Badge>
+								)}
+								{col.defaultValue && (
+									<Badge
+										variant="secondary"
+										className="max-w-[100px] truncate shrink-0 text-3xs h-3.5 px-1 leading-none font-mono"
+										title={`default ${col.defaultValue}`}
+									>
+										{col.defaultValue}
 									</Badge>
 								)}
 							</div>

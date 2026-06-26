@@ -1,9 +1,11 @@
 import {
+	Database,
 	Paintbrush,
 	Settings,
 	type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { DatabaseType } from "#/types/schema.ts";
 import type { EdgeStyle } from "#/lib/graph-builder.ts";
 import type { useTheme } from "../theme-provider.tsx";
 import {
@@ -24,11 +26,15 @@ interface SettingsDialogProps {
 	onEdgeStyleChange: (style: EdgeStyle) => void;
 	theme: Theme;
 	setTheme: SetTheme;
+	databaseType: DatabaseType;
+	onDatabaseTypeChange: (type: DatabaseType) => void;
+	initialNav?: string;
 }
 
 const NAV_ITEMS: { id: string; label: string; icon: LucideIcon }[] = [
 	{ id: "appearance", label: "View & Theme", icon: Paintbrush },
 	{ id: "graph", label: "Graph", icon: Settings },
+	{ id: "project", label: "Project", icon: Database },
 ];
 
 export default function SettingsDialog({
@@ -38,8 +44,17 @@ export default function SettingsDialog({
 	onEdgeStyleChange,
 	theme,
 	setTheme,
+	databaseType,
+	onDatabaseTypeChange,
+	initialNav = "appearance",
 }: SettingsDialogProps) {
-	const [activeNav, setActiveNav] = useState("appearance");
+	const [activeNav, setActiveNav] = useState(initialNav);
+
+	useEffect(() => {
+		if (open) {
+			setActiveNav(initialNav);
+		}
+	}, [open, initialNav]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,6 +98,12 @@ export default function SettingsDialog({
 								<GraphSection
 									edgeStyle={edgeStyle}
 									onEdgeStyleChange={onEdgeStyleChange}
+								/>
+							)}
+							{activeNav === "project" && (
+								<ProjectSection
+									databaseType={databaseType}
+									onDatabaseTypeChange={onDatabaseTypeChange}
 								/>
 							)}
 						</div>
@@ -138,6 +159,60 @@ function AppearanceSection({
 				<p className="text-xs text-muted-foreground">
 					More options coming soon.
 				</p>
+			</div>
+		</div>
+	);
+}
+
+const DB_LOGOS: Record<string, string> = {
+	postgresql: "/postgresql.svg",
+	clickhouse: "/clickhouse.svg",
+};
+
+function ProjectSection({
+	databaseType,
+	onDatabaseTypeChange,
+}: {
+	databaseType: DatabaseType;
+	onDatabaseTypeChange: (type: DatabaseType) => void;
+}) {
+	const options: { value: DatabaseType; label: string; desc: string }[] = [
+		{ value: "postgresql", label: "PostgreSQL", desc: "Relational database with rich type system" },
+		{ value: "clickhouse", label: "ClickHouse", desc: "Column-oriented OLAP database" },
+	];
+
+	return (
+		<div className="space-y-4">
+			<div>
+				<h3 className="text-sm font-medium mb-1">Database Type</h3>
+				<p className="text-xs text-muted-foreground mb-3">
+					Select the SQL dialect for parsing and type validation.
+				</p>
+				<div className="flex gap-2">
+					{options.map((opt) => (
+						<button
+							key={opt.value}
+							type="button"
+							onClick={() => onDatabaseTypeChange(opt.value)}
+							data-active={databaseType === opt.value ? "" : undefined}
+							className="flex-1 rounded-lg border-2 border-transparent px-4 py-3 text-left transition-colors hover:bg-accent hover:text-accent-foreground data-[active]:border-primary data-[active]:bg-accent"
+						>
+							<div className="flex items-start gap-3">
+								<img
+									src={DB_LOGOS[opt.value]}
+									alt={opt.label}
+									className="size-6 shrink-0 mt-0.5 dark:brightness-0 dark:invert"
+								/>
+								<div>
+									<span className="text-sm font-medium block">{opt.label}</span>
+									<span className="text-xs text-muted-foreground mt-0.5 block">
+										{opt.desc}
+									</span>
+								</div>
+							</div>
+						</button>
+					))}
+				</div>
 			</div>
 		</div>
 	);

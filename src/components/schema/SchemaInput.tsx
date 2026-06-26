@@ -17,8 +17,8 @@ import {
 import { useTheme } from "#/components/theme-provider.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
-import { lintQuick } from "#/lib/schema-parser.ts";
-import type { SchemaIssue } from "#/types/schema.ts";
+import { DEFAULT_DDL, lintQuick } from "#/lib/schema-parser.ts";
+import type { DatabaseType, SchemaIssue } from "#/types/schema.ts";
 
 const appHighlight = syntaxHighlighting(
 	HighlightStyle.define([
@@ -152,10 +152,12 @@ function findIssuePos(doc: string, issue: SchemaIssue): { from: number; to: numb
 	return { from, to };
 }
 
+let currentDatabaseType: DatabaseType = "postgresql";
+
 const sqlLinter = linter(
 	(view: EditorView) => {
 		const doc = view.state.doc.toString();
-		const issues = lintQuick(doc);
+		const issues = lintQuick(doc, currentDatabaseType);
 		const diagnostics: { from: number; to: number; severity: "warning" | "error"; message: string }[] = [];
 		for (const issue of issues) {
 			const pos = findIssuePos(doc, issue);
@@ -173,112 +175,9 @@ const sqlLinter = linter(
 	{ delay: 500 },
 );
 
-const DEFAULT_DDL = `CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  display_name VARCHAR(255),
-  bio TEXT,
-  metadata JSONB DEFAULT '{}',
-  rating NUMERIC(3,2) DEFAULT 0.00,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE profiles (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
-  avatar_url VARCHAR(500),
-  website VARCHAR(255),
-  birthday DATE,
-  phone VARCHAR(20)
-);
-
-CREATE TABLE posts (
-  id SERIAL PRIMARY KEY,
-  author_id INTEGER NOT NULL REFERENCES users(id),
-  title VARCHAR(255) NOT NULL,
-  slug VARCHAR(300) UNIQUE NOT NULL,
-  body TEXT NOT NULL,
-  excerpt TEXT,
-  published BOOLEAN DEFAULT FALSE,
-  rating NUMERIC(2,1) DEFAULT 0.0,
-  views INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE comments (
-  id SERIAL PRIMARY KEY,
-  post_id INTEGER NOT NULL REFERENCES posts(id),
-  author_id INTEGER NOT NULL REFERENCES users(id),
-  parent_id INTEGER REFERENCES comments(id),
-  body TEXT NOT NULL,
-  depth INTEGER DEFAULT 0,
-  upvotes INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE tags (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) UNIQUE NOT NULL,
-  color VARCHAR(7) DEFAULT '#6366f1'
-);
-
-CREATE TABLE posts_tags (
-  post_id INTEGER NOT NULL REFERENCES posts(id),
-  tag_id INTEGER NOT NULL REFERENCES tags(id),
-  PRIMARY KEY (post_id, tag_id)
-);
-
-CREATE TABLE customers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL
-);
-
-CREATE TABLE orders (
-  id SERIAL PRIMARY KEY,
-  customer_id UUID NOT NULL REFERENCES customers(id),
-  status VARCHAR(50) DEFAULT 'pending',
-  total NUMERIC(10,2) NOT NULL,
-  ordered_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE products (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  price NUMERIC(10,2) NOT NULL,
-  stock INTEGER DEFAULT 0
-);
-
-CREATE TABLE order_items (
-  id SERIAL PRIMARY KEY,
-  order_id INTEGER NOT NULL REFERENCES orders(id),
-  product_id INTEGER NOT NULL REFERENCES products(id),
-  quantity INTEGER NOT NULL DEFAULT 1,
-  unit_price NUMERIC(10,2) NOT NULL,
-  UNIQUE (order_id, product_id)
-);
-
-CREATE TABLE departments (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) UNIQUE NOT NULL,
-  budget NUMERIC(12,2)
-);
-
-CREATE TABLE employees (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  manager_id INTEGER REFERENCES employees(id),
-  department_id INTEGER NOT NULL REFERENCES departments(id),
-  salary NUMERIC(10,2),
-  hired_at DATE DEFAULT CURRENT_DATE
-);
-`;
-
 interface SchemaInputProps {
 	initialDdl?: string;
+	databaseType?: DatabaseType;
 	onRender: (ddl: string) => void;
 	onChange?: (ddl: string) => void;
 	onActiveTableChange?: (tableName: string | null) => void;
@@ -287,11 +186,12 @@ interface SchemaInputProps {
 
 export interface SchemaInputHandle {
 	setValue: (content: string) => void;
+	getValue: () => string | undefined;
 	scrollToIssue: (issue: SchemaIssue) => void;
 }
 
 const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
-	function SchemaInput({ initialDdl, onRender, onChange, onActiveTableChange, onTableDoubleClick }, ref) {
+	function SchemaInput({ initialDdl, databaseType = "postgresql", onRender, onChange, onActiveTableChange, onTableDoubleClick }, ref) {
 		const { theme } = useTheme();
 		const editorRef = useRef<HTMLDivElement>(null);
 		const viewRef = useRef<EditorView | null>(null);
@@ -303,6 +203,10 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 		activeTableCb.current = onActiveTableChange;
 		const dblClickCb = useRef(onTableDoubleClick);
 		dblClickCb.current = onTableDoubleClick;
+
+		useEffect(() => {
+			currentDatabaseType = databaseType;
+		}, [databaseType]);
 
 		const initialDark =
 			typeof document !== "undefined" &&
@@ -324,7 +228,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 			const dark = initialDark;
 
 			const state = EditorState.create({
-				doc: initialDdl ?? DEFAULT_DDL,
+				doc: initialDdl ?? DEFAULT_DDL[databaseType],
 				extensions: [
 					basicSetup,
 					sql(),
@@ -378,7 +282,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 				view.destroy();
 				viewRef.current = null;
 			};
-		}, [initialDark]);
+		}, [initialDark, databaseType]);
 
 		useEffect(() => {
 			const view = viewRef.current;
@@ -404,6 +308,9 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 							},
 						});
 					}
+				},
+				getValue: () => {
+					return viewRef.current?.state.doc.toString();
 				},
 				scrollToIssue: (issue: SchemaIssue) => {
 					const view = viewRef.current;
@@ -468,6 +375,11 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 				<div className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0 bg-muted/30">
 					<span className="flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase shrink-0 text-muted-foreground">
 						<FileCode className="size-3.5" />
+						<img
+							src={`/${databaseType}.svg`}
+							alt={databaseType}
+							className="size-3.5 dark:brightness-0 dark:invert"
+						/>
 						Schema DDL
 					</span>
 

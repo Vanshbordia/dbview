@@ -1,7 +1,10 @@
+import type { DatabaseType } from "#/types/schema.ts";
+
 export interface Project {
 	id: string;
 	name: string;
 	ddl: string;
+	databaseType: DatabaseType;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -38,11 +41,12 @@ function saveProject(project: Project): void {
 	localStorage.setItem(`dbview:project:${project.id}`, JSON.stringify(project));
 }
 
-export function createProject(name: string, ddl = ""): Project {
+export function createProject(name: string, ddl = "", databaseType: DatabaseType = "postgresql"): Project {
 	const project: Project = {
 		id: generateId(),
 		name,
 		ddl,
+		databaseType,
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
 	};
@@ -53,7 +57,7 @@ export function createProject(name: string, ddl = ""): Project {
 	return project;
 }
 
-export function updateProject(id: string, updates: Partial<{ name: string; ddl: string }>): Project | null {
+export function updateProject(id: string, updates: Partial<{ name: string; ddl: string; databaseType: DatabaseType }>): Project | null {
 	const project = getProject(id);
 	if (!project) return null;
 	Object.assign(project, updates, { updatedAt: Date.now() });

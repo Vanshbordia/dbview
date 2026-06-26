@@ -1,227 +1,111 @@
-Welcome to your new TanStack Start app! 
+# DBView — Interactive Schema Visualizer
 
-# Getting Started
+Write SQL DDL, get an instant interactive entity-relationship diagram. Supports **PostgreSQL** and **ClickHouse** dialects with real-time linting, dual-parsing strategy, and full project management — all in the browser.
 
-To run this application:
+![Tech Stack](https://img.shields.io/badge/React-19-61DAFB?logo=react) ![TanStack](https://img.shields.io/badge/TanStack-Start-FF4154?logo=react) ![Tailwind](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss) ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript) ![License](https://img.shields.io/badge/license-MIT-green)
+
+---
+
+## Features
+
+- **Dual-dialect parsing** — PostgreSQL and ClickHouse DDL with type validation per dialect
+- **Dual parsing strategy** — AST-based via `node-sql-parser`, with automatic regex fallback for complex ClickHouse syntax (`Nullable(Enum8(...))`, `LowCardinality`, engine clauses, etc.)
+- **Dialect auto-detection** — ClickHouse DDL is recognized automatically; no manual switching needed
+- **Real-time SQL linting** — inline diagnostics via CodeMirror lint gutter as you type
+- **Interactive ER diagram** — pan, zoom, minimap, auto-layout with connected-component packing
+- **Relationship inference** — one-to-one, one-to-many, many-to-many detected automatically from foreign keys and junction tables
+- **Table detail panel** — click any table to inspect columns, types, constraints, and all FK references
+- **Project management** — create, rename, delete, and switch between projects persisted in `localStorage`
+- **Dark / light / system theme** — SSR-safe theme switching with flash prevention
+- **SQL file import** — drag or upload `.sql` / `.txt` files
+- **CodeMirror 6** editor with SQL syntax highlighting, line wrapping, and one-dark theme
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [React 19](https://react.dev), [TanStack Start](https://tanstack.com/start) |
+| Graph | [React Flow](https://reactflow.dev) via `@xyflow/react` |
+| Layout | [dagre](https://github.com/dagrejs/dagre) with connected-component packing |
+| SQL Parsing | `node-sql-parser` + custom regex fallback |
+| Editor | [CodeMirror 6](https://codemirror.net) with SQL & lint extensions |
+| UI | [Radix UI](https://radix-ui.com) via [shadcn/ui](https://ui.shadcn.com) |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com), `tailwind-merge`, `clsx` |
+| State | `localStorage` persistence, TanStack Query |
+| Lint / Format | [Biome](https://biomejs.dev) |
+| Build | [Vite 8](https://vitejs.dev), [Nitro](https://nitro.build) |
+| Tests | [Vitest](https://vitest.dev) |
+
+## Getting Started
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:3000
 ```
 
-# Building For Production
+Open the browser, paste in your DDL, and click **Render**.
 
-To build this application for production:
+## Scripts
 
-```bash
-npm run build
+| Script | Description |
+|---|---|
+| `npm run dev` | Start dev server on port 3000 |
+| `npm run build` | Production build via Nitro |
+| `npm run preview` | Preview production build |
+| `npm run test` | Run Vitest tests |
+| `npm run lint` | Biome lint |
+| `npm run format` | Biome format |
+| `npm run check` | Biome lint + format check |
+
+## How It Works
+
+1. **Write DDL** in the CodeMirror editor (left panel). Real-time linting marks errors and warnings inline.
+2. **Parse** — `parseSchema()` strips comments, auto-detects the dialect, tries the AST parser, then falls back to a regex parser if needed.
+3. **Validate** — foreign keys are cross-referenced; missing tables produce error-level issues.
+4. **Build graph** — `buildGraph()` converts tables to React Flow nodes with auto-layout via dagre. Disconnected schema fragments are independently laid out and packed into a compact grid.
+5. **Explore** — pan, zoom, click tables for details, follow FK references, toggle layout direction.
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── schema/          # Main app components
+│   │   ├── SchemaPage.tsx         # Top-level orchestrator
+│   │   ├── SchemaInput.tsx        # CodeMirror editor
+│   │   ├── SchemaGraph.tsx        # React Flow graph container
+│   │   ├── TableNode.tsx          # Custom table node renderer
+│   │   ├── RelationshipEdge.tsx   # Custom edge renderer
+│   │   ├── TableInfoPanel.tsx     # Table detail slide-over
+│   │   ├── IssuesPanel.tsx        # Lint issues panel
+│   │   ├── WelcomeScreen.tsx      # Empty-state landing
+│   │   ├── ProjectDialog.tsx      # Create/rename project
+│   │   └── SettingsDialog.tsx     # Theme, graph, project settings
+│   └── ui/               # shadcn/ui primitives
+├── lib/
+│   ├── schema-parser.ts  # SQL parser & linter (both dialects)
+│   ├── type-colors.ts    # Type → color mapping + type simplification
+│   ├── graph-builder.ts  # Node/edge graph construction & layout
+│   └── project-store.ts  # localStorage persistence
+├── types/
+│   └── schema.ts         # Core data types
+├── hooks/
+│   └── use-persisted-state.ts
+└── routes/
+    ├── __root.tsx        # Root layout
+    └── index.tsx         # Single-page app
 ```
 
-## Testing
+## Supported Dialects
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+### PostgreSQL
 
-```bash
-npm run test
-```
+Full `CREATE TABLE` syntax including inline and table-level `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `REFERENCES`, `NOT NULL`, `DEFAULT`, `SERIAL`, `ALTER TABLE ... ADD FOREIGN KEY`. All standard PG types (including `JSONB`, `BYTEA`, `OID`, `UUID`, `NUMERIC`).
 
-## Styling
+### ClickHouse
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+DDL with `ENGINE = ...`, `ORDER BY`, `PARTITION BY`, `SAMPLE BY`, `Nullable()`, `LowCardinality()`, `Enum8/16()`, `Array()`, `Map()`, `Tuple()`, `Nested()`, `IPv4`, `IPv6`, `FixedString`, `DateTime64`, `Date32`, `UInt8`–`UInt256`, `Int8`–`Int256`, `Float32`/`Float64`. Column clauses `CODEC`, `TTL`, `ALIAS`, `MATERIALIZED`, `EPHEMERAL`, `INDEX`, `PROJECTION` are ignored during parsing.
 
-### Removing Tailwind CSS
+## License
 
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `npm install @tailwindcss/vite tailwindcss -D`
-
-## Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
-
-
-```bash
-npm run lint
-npm run format
-npm run check
-```
-
-
-## Deploy with Nitro
-
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
-
-```bash
-npm run build
-node dist/server/index.mjs
-```
-
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
-
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
-
-
-## Shadcn
-
-Add components using the latest version of [Shadcn](https://ui.shadcn.com/).
-
-```bash
-pnpm dlx shadcn@latest add button
-```
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+MIT

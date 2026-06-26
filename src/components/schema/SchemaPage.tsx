@@ -1,5 +1,5 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { FilePlus, FolderOpen, Moon, RefreshCw, Settings, Sun, Trash2, Upload } from "lucide-react";
+import { Database, FilePlus, History, Moon, RefreshCw, Settings, Sun, Trash2, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -24,9 +24,9 @@ import {
 	ResizablePanelGroup,
 } from "#/components/ui/resizable.tsx";
 import { usePersistedState } from "#/hooks/use-persisted-state.ts";
-import { parseSchema } from "#/lib/schema-parser.ts";
+import { parseSchema, DEFAULT_DDL } from "#/lib/schema-parser.ts";
 import type { EdgeStyle } from "#/lib/graph-builder.ts";
-import type { ParsedSchema, SchemaIssue } from "#/types/schema.ts";
+import type { DatabaseType, ParsedSchema, SchemaIssue } from "#/types/schema.ts";
 import { useTheme } from "../theme-provider.tsx";
 import IssuesPanel from "./IssuesPanel.tsx";
 import ProjectDialog from "./ProjectDialog.tsx";
@@ -46,110 +46,6 @@ import {
 	type Project,
 } from "#/lib/project-store.ts";
 
-const DEFAULT_DDL = `CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  display_name VARCHAR(255),
-  bio TEXT,
-  metadata JSONB DEFAULT '{}',
-  rating NUMERIC(3,2) DEFAULT 0.00,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE profiles (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
-  avatar_url VARCHAR(500),
-  website VARCHAR(255),
-  birthday DATE,
-  phone VARCHAR(20)
-);
-
-CREATE TABLE posts (
-  id SERIAL PRIMARY KEY,
-  author_id INTEGER NOT NULL REFERENCES users(id),
-  title VARCHAR(255) NOT NULL,
-  slug VARCHAR(300) UNIQUE NOT NULL,
-  body TEXT NOT NULL,
-  excerpt TEXT,
-  published BOOLEAN DEFAULT FALSE,
-  rating NUMERIC(2,1) DEFAULT 0.0,
-  views INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE comments (
-  id SERIAL PRIMARY KEY,
-  post_id INTEGER NOT NULL REFERENCES posts(id),
-  author_id INTEGER NOT NULL REFERENCES users(id),
-  parent_id INTEGER REFERENCES comments(id),
-  body TEXT NOT NULL,
-  depth INTEGER DEFAULT 0,
-  upvotes INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE tags (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) UNIQUE NOT NULL,
-  color VARCHAR(7) DEFAULT '#6366f1'
-);
-
-CREATE TABLE posts_tags (
-  post_id INTEGER NOT NULL REFERENCES posts(id),
-  tag_id INTEGER NOT NULL REFERENCES tags(id),
-  PRIMARY KEY (post_id, tag_id)
-);
-
-CREATE TABLE customers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL
-);
-
-CREATE TABLE orders (
-  id SERIAL PRIMARY KEY,
-  customer_id UUID NOT NULL REFERENCES customers(id),
-  status VARCHAR(50) DEFAULT 'pending',
-  total NUMERIC(10,2) NOT NULL,
-  ordered_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE products (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  price NUMERIC(10,2) NOT NULL,
-  stock INTEGER DEFAULT 0
-);
-
-CREATE TABLE order_items (
-  id SERIAL PRIMARY KEY,
-  order_id INTEGER NOT NULL REFERENCES orders(id),
-  product_id INTEGER NOT NULL REFERENCES products(id),
-  quantity INTEGER NOT NULL DEFAULT 1,
-  unit_price NUMERIC(10,2) NOT NULL,
-  UNIQUE (order_id, product_id)
-);
-
-CREATE TABLE departments (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) UNIQUE NOT NULL,
-  budget NUMERIC(12,2)
-);
-
-CREATE TABLE employees (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  manager_id INTEGER REFERENCES employees(id),
-  department_id INTEGER NOT NULL REFERENCES departments(id),
-  salary NUMERIC(10,2),
-  hired_at DATE DEFAULT CURRENT_DATE
-);
-`;
-
 export default function SchemaPage() {
 	const [schema, setSchema] = useState<ParsedSchema | null>(null);
 	const [editorOpen, setEditorOpen] = usePersistedState("dbview:editorOpen", true);
@@ -160,10 +56,14 @@ export default function SchemaPage() {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const editorRef = useRef<SchemaInputHandle>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [settingsInitialNav, setSettingsInitialNav] = useState("appearance");
 	const [edgeStyle, setEdgeStyle] = usePersistedState<EdgeStyle>("dbview:edgeStyle", "bezier");
 	const [activeTableName, setActiveTableName] = useState<string | null>(null);
 	const [issues, setIssues] = useState<SchemaIssue[]>([]);
+	const [databaseType, setDatabaseType] = useState<DatabaseType>("postgresql");
 	const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const projectRef = useRef<Project | null>(null);
+	const flushRef = useRef<() => void>(() => {});
 
 	// Project state
 	const [project, setProject] = useState<Project | null>(null);
@@ -187,7 +87,7 @@ export default function SchemaPage() {
 			const p = getProject(id);
 			if (p) {
 				setProject(p);
-				// Load project DDL into editor after creation
+				setDatabaseType(p.databaseType ?? "postgresql");
 				requestAnimationFrame(() => {
 					editorRef.current?.setValue(p.ddl);
 				});
@@ -202,29 +102,48 @@ export default function SchemaPage() {
 		setProjectList(getProjectList());
 	}, []);
 
-	// Auto-save DDL to project with debounce
+	// Keep ref in sync with state for use in timeout/event handlers
+	projectRef.current = project;
+
+	// Auto-save DDL to project with debounce (uses ref to avoid stale closure)
 	const saveDdl = useCallback((ddl: string) => {
-		if (!project) return;
 		clearTimeout(saveTimer.current);
 		saveTimer.current = setTimeout(() => {
-			const updated = updateProject(project.id, { ddl });
+			const p = projectRef.current;
+			if (!p) return;
+			const updated = updateProject(p.id, { ddl });
 			if (updated) {
 				setProject(updated);
 				refreshProjectList();
 			}
-		}, 800);
-	}, [project, refreshProjectList]);
+		}, 400);
+	}, [refreshProjectList]);
+
+	// Immediately save any pending DDL changes before switching projects
+	const flushCurrentSave = useCallback(() => {
+		clearTimeout(saveTimer.current);
+		const p = projectRef.current;
+		if (!p) return;
+		const ddl = editorRef.current?.getValue();
+		if (ddl === undefined) return;
+		const updated = updateProject(p.id, { ddl });
+		if (updated) {
+			setProject(updated);
+			refreshProjectList();
+		}
+	}, [refreshProjectList]);
 
 	const handleNewProjectSubmit = useCallback((name: string) => {
-		const p = createProject(name);
+		flushCurrentSave();
+		const p = createProject(name, "", databaseType);
 		setProject(p);
 		setActiveProjectId(p.id);
 		setSchema(null);
 		setIssues([]);
-		editorRef.current?.setValue(p.ddl);
+		editorRef.current?.setValue(DEFAULT_DDL[databaseType]);
 		refreshProjectList();
 		toast.success(`Created project "${p.name}"`);
-	}, [refreshProjectList]);
+	}, [flushCurrentSave, refreshProjectList, databaseType]);
 
 	const handleRenameSubmit = useCallback((name: string) => {
 		if (!project) return;
@@ -237,14 +156,16 @@ export default function SchemaPage() {
 	}, [project, refreshProjectList]);
 
 	const handleOpenProject = useCallback((id: string) => {
+		flushCurrentSave();
 		const p = getProject(id);
 		if (!p) return;
 		setProject(p);
+		setDatabaseType(p.databaseType ?? "postgresql");
 		setActiveProjectId(id);
 		setSchema(null);
 		setIssues([]);
 		editorRef.current?.setValue(p.ddl);
-	}, []);
+	}, [flushCurrentSave]);
 
 	const handleDeleteProject = useCallback(() => {
 		if (!project) return;
@@ -261,19 +182,19 @@ export default function SchemaPage() {
 
 	const tryRender = useCallback((ddl: string) => {
 		try {
-			const parsed = parseSchema(ddl);
+			const parsed = parseSchema(ddl, databaseType);
 			if (parsed.tables.length > 0) {
 				setSchema(parsed);
 			}
 		} catch {
 			/* ignore parse errors in sync mode */
 		}
-	}, []);
+	}, [databaseType]);
 
 	const handleRender = useCallback((ddl: string) => {
 		clearTimeout(syncTimer.current);
 		try {
-			const parsed = parseSchema(ddl);
+			const parsed = parseSchema(ddl, databaseType);
 			if (parsed.tables.length === 0) {
 				toast.error("No tables found in the DDL. Check your SQL syntax.");
 				return;
@@ -333,7 +254,7 @@ export default function SchemaPage() {
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : "Failed to parse schema");
 		}
-	}, []);
+	}, [databaseType]);
 
 	const handleChange = useCallback(
 		(ddl: string) => {
@@ -348,6 +269,7 @@ export default function SchemaPage() {
 	const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
+		flushCurrentSave();
 		const reader = new FileReader();
 		reader.onload = () => {
 			editorRef.current?.setValue(reader.result as string);
@@ -356,7 +278,7 @@ export default function SchemaPage() {
 		reader.onerror = () => toast.error("Failed to read file");
 		reader.readAsText(file);
 		e.target.value = "";
-	}, []);
+	}, [flushCurrentSave]);
 
 	const toggleEditor = useCallback(() => {
 		const panel = panelRef.current;
@@ -379,6 +301,41 @@ export default function SchemaPage() {
 
 	const handleJumpToIssue = useCallback((issue: SchemaIssue) => {
 		editorRef.current?.scrollToIssue(issue);
+	}, []);
+
+	const handleDatabaseTypeChange = useCallback((type: DatabaseType) => {
+		setDatabaseType(type);
+		if (project) {
+			const updated = updateProject(project.id, { databaseType: type });
+			if (updated) {
+				setProject(updated);
+				refreshProjectList();
+			}
+		}
+		editorRef.current?.setValue(DEFAULT_DDL[type]);
+		setSchema(null);
+		setIssues([]);
+	}, [project, refreshProjectList]);
+
+	// Keep flush ref in sync for use in event handlers
+	flushRef.current = flushCurrentSave;
+
+	// Save pending changes on page close / refresh
+	useEffect(() => {
+		const handleBeforeUnload = () => {
+			flushRef.current();
+		};
+		const handleVisibility = () => {
+			if (document.visibilityState === "hidden") {
+				flushRef.current();
+			}
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () => {
+			window.removeEventListener("beforeunload", handleBeforeUnload);
+			document.removeEventListener("visibilitychange", handleVisibility);
+		};
 	}, []);
 
 	const erroredTables = useMemo(() => {
@@ -406,40 +363,27 @@ export default function SchemaPage() {
 						</MenubarItem>
 						{projectList.length > 0 && (
 							<MenubarGroup>
-							<MenubarSub>
-								<MenubarSubTrigger>
-									<FolderOpen className="size-3.5 mr-2" />
-									Open Project
-								</MenubarSubTrigger>
-								<MenubarSubContent>
-									{projectList.map((p) => (
-										<MenubarItem
-											key={p.id}
-											onSelect={() => handleOpenProject(p.id)}
-										>
-											<span className="truncate max-w-40">{p.name}</span>
-											{project?.id === p.id && (
-												<span className="ml-auto text-2xs text-muted-foreground">(active)</span>
-											)}
-										</MenubarItem>
-									))}
-								</MenubarSubContent>
-							</MenubarSub>
+								<MenubarSub>
+									<MenubarSubTrigger>
+										<History className="size-3.5 mr-2" />
+										Recent Projects
+									</MenubarSubTrigger>
+									<MenubarSubContent>
+										{[...projectList].sort((a, b) => b.updatedAt - a.updatedAt).map((p) => (
+											<MenubarItem
+												key={p.id}
+												onSelect={() => handleOpenProject(p.id)}
+											>
+												<span className="truncate max-w-40">{p.name}</span>
+												{project?.id === p.id && (
+													<span className="ml-auto text-2xs text-muted-foreground">(active)</span>
+												)}
+											</MenubarItem>
+										))}
+									</MenubarSubContent>
+								</MenubarSub>
 							</MenubarGroup>
 						)}
-						<MenubarGroup>
-            <MenubarSub>
-              <MenubarSubTrigger>
-Share</MenubarSubTrigger>
-              <MenubarSubContent>
-                <MenubarGroup>
-                  <MenubarItem>Email link</MenubarItem>
-                  <MenubarItem>Messages</MenubarItem>
-                  <MenubarItem>Notes</MenubarItem>
-                </MenubarGroup>
-              </MenubarSubContent>
-            </MenubarSub>
-          </MenubarGroup>
 						<MenubarItem onSelect={() => fileInputRef.current?.click()}>
 							<Upload className="size-3.5 mr-2" />
 							Import SQL File...
@@ -447,6 +391,13 @@ Share</MenubarSubTrigger>
 						{project && (
 							<>
 								<MenubarSeparator />
+								<MenubarItem onSelect={() => {
+									setSettingsInitialNav("project");
+									setSettingsOpen(true);
+								}}>
+									<Database className="size-3.5 mr-2" />
+									Project Settings
+								</MenubarItem>
 								<MenubarItem onSelect={() => {
 									setProjectDialogMode("rename");
 									setProjectDialogOpen(true);
@@ -461,9 +412,12 @@ Share</MenubarSubTrigger>
 							</>
 						)}
 						<MenubarSeparator />
-						<MenubarItem onSelect={() => setSettingsOpen(true)}>
+						<MenubarItem onSelect={() => {
+							setSettingsInitialNav("appearance");
+							setSettingsOpen(true);
+						}}>
 							<Settings className="size-3.5 mr-2" />
-							Settings...
+							Global Settings...
 						</MenubarItem>
 					</MenubarContent>
 				</MenubarMenu>
@@ -557,11 +511,12 @@ Share</MenubarSubTrigger>
 						<div className="flex-1 min-h-0">
 							<SchemaInput
 								ref={editorRef}
-								initialDdl={project?.ddl ?? DEFAULT_DDL}
+								initialDdl={project?.ddl ?? DEFAULT_DDL[databaseType]}
 								onRender={handleRender}
 								onChange={handleChange}
 								onActiveTableChange={setActiveTableName}
 								onTableDoubleClick={handleTableDoubleClick}
+								databaseType={databaseType}
 							/>
 						</div>
 						<IssuesPanel
@@ -608,6 +563,9 @@ Share</MenubarSubTrigger>
 				onEdgeStyleChange={setEdgeStyle}
 				theme={theme}
 				setTheme={setTheme}
+				databaseType={databaseType}
+				onDatabaseTypeChange={handleDatabaseTypeChange}
+				initialNav={settingsInitialNav}
 			/>
 		</div>
 	);

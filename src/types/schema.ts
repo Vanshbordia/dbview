@@ -38,3 +38,10 @@ export interface ParsedSchema {
 }
 
 export type RelationshipType = "one-to-one" | "one-to-many" | "many-to-many";
+
+export type DatabaseType = "postgresql" | "clickhouse";
+
+export const DATABASE_LABELS: Record<DatabaseType, string> = {
+	postgresql: "PostgreSQL",
+	clickhouse: "ClickHouse",
+};
