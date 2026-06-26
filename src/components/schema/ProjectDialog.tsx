@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Button } from "#/components/ui/button.tsx";
 import {
 	Dialog,
 	DialogContent,
@@ -8,7 +9,6 @@ import {
 	DialogTitle,
 } from "#/components/ui/dialog.tsx";
 import { Input } from "#/components/ui/input.tsx";
-import { Button } from "#/components/ui/button.tsx";
 
 interface ProjectDialogProps {
 	open: boolean;

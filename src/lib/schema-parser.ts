@@ -11,48 +11,126 @@ import type {
 const { Parser } = nodeSqlParser;
 
 const VALID_PG_TYPES = new Set([
-	"SMALLINT", "INTEGER", "INT", "BIGINT", "DECIMAL", "NUMERIC", "REAL",
-	"FLOAT", "DOUBLE PRECISION", "SMALLSERIAL", "SERIAL", "BIGSERIAL", "MONEY",
-	"VARCHAR", "CHARACTER VARYING", "CHAR", "CHARACTER", "TEXT",
+	"SMALLINT",
+	"INTEGER",
+	"INT",
+	"BIGINT",
+	"DECIMAL",
+	"NUMERIC",
+	"REAL",
+	"FLOAT",
+	"DOUBLE PRECISION",
+	"SMALLSERIAL",
+	"SERIAL",
+	"BIGSERIAL",
+	"MONEY",
+	"VARCHAR",
+	"CHARACTER VARYING",
+	"CHAR",
+	"CHARACTER",
+	"TEXT",
 	"BYTEA",
-	"DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ", "INTERVAL",
-	"TIME WITH TIME ZONE", "TIME WITHOUT TIME ZONE",
-	"TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITHOUT TIME ZONE",
-	"BOOLEAN", "BOOL",
-	"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE",
-	"CIDR", "INET", "MACADDR", "MACADDR8",
-	"JSON", "JSONB",
-	"BIT", "BIT VARYING",
-	"TSVECTOR", "TSQUERY",
+	"DATE",
+	"TIME",
+	"TIMESTAMP",
+	"TIMESTAMPTZ",
+	"INTERVAL",
+	"TIME WITH TIME ZONE",
+	"TIME WITHOUT TIME ZONE",
+	"TIMESTAMP WITH TIME ZONE",
+	"TIMESTAMP WITHOUT TIME ZONE",
+	"BOOLEAN",
+	"BOOL",
+	"POINT",
+	"LINE",
+	"LSEG",
+	"BOX",
+	"PATH",
+	"POLYGON",
+	"CIRCLE",
+	"CIDR",
+	"INET",
+	"MACADDR",
+	"MACADDR8",
+	"JSON",
+	"JSONB",
+	"BIT",
+	"BIT VARYING",
+	"TSVECTOR",
+	"TSQUERY",
 	"UUID",
 	"XML",
-	"INT4RANGE", "INT8RANGE", "NUMRANGE", "TSRANGE", "TSTZRANGE", "DATERANGE",
-	"OID", "REGPROC", "REGPROCEDURE", "REGOPER", "REGOPERATOR",
-	"REGCLASS", "REGTYPE", "REGCONFIG", "REGDICTIONARY",
+	"INT4RANGE",
+	"INT8RANGE",
+	"NUMRANGE",
+	"TSRANGE",
+	"TSTZRANGE",
+	"DATERANGE",
+	"OID",
+	"REGPROC",
+	"REGPROCEDURE",
+	"REGOPER",
+	"REGOPERATOR",
+	"REGCLASS",
+	"REGTYPE",
+	"REGCONFIG",
+	"REGDICTIONARY",
 	"PG_LSN",
-	"ANY", "ANYELEMENT", "ANYARRAY", "ANYNONARRAY", "ANYDIMENSION",
-	"CSTRING", "INTERNAL", "LANGUAGE_HANDLER", "RECORD", "TRIGGER", "VOID",
+	"ANY",
+	"ANYELEMENT",
+	"ANYARRAY",
+	"ANYNONARRAY",
+	"ANYDIMENSION",
+	"CSTRING",
+	"INTERNAL",
+	"LANGUAGE_HANDLER",
+	"RECORD",
+	"TRIGGER",
+	"VOID",
 ]);
 
 const VALID_CH_TYPES = new Set([
-	"INT8", "INT16", "INT32", "INT64", "INT128", "INT256",
-	"UINT8", "UINT16", "UINT32", "UINT64", "UINT128", "UINT256",
-	"FLOAT32", "FLOAT64",
-	"DECIMAL", "DECIMAL32", "DECIMAL64", "DECIMAL128", "DECIMAL256",
+	"INT8",
+	"INT16",
+	"INT32",
+	"INT64",
+	"INT128",
+	"INT256",
+	"UINT8",
+	"UINT16",
+	"UINT32",
+	"UINT64",
+	"UINT128",
+	"UINT256",
+	"FLOAT32",
+	"FLOAT64",
+	"DECIMAL",
+	"DECIMAL32",
+	"DECIMAL64",
+	"DECIMAL128",
+	"DECIMAL256",
 	"BOOLEAN",
-	"STRING", "FIXEDSTRING",
+	"STRING",
+	"FIXEDSTRING",
 	"UUID",
-	"DATE", "DATE32",
-	"DATETIME", "DATETIME64",
-	"ENUM8", "ENUM16",
+	"DATE",
+	"DATE32",
+	"DATETIME",
+	"DATETIME64",
+	"ENUM8",
+	"ENUM16",
 	"ARRAY",
 	"MAP",
 	"NULLABLE",
 	"LOWCARDINALITY",
 	"TUPLE",
 	"NESTED",
-	"IPV4", "IPV6",
-	"POINT", "RING", "POLYGON", "MULTIPOLYGON",
+	"IPV4",
+	"IPV6",
+	"POINT",
+	"RING",
+	"POLYGON",
+	"MULTIPOLYGON",
 	"SIMPLEAGGREGATEFUNCTION",
 ]);
 
@@ -283,6 +361,7 @@ function stripComments(sql: string): string {
 
 /* ---------- node-sql-parser based parsing ---------- */
 
+// biome-ignore lint/suspicious/noExplicitAny: node-sql-parser def
 function makeType(def: any): string {
 	let t = (def?.dataType ?? "").toUpperCase();
 	if (def?.length !== undefined) t += `(${def.length})`;
@@ -291,8 +370,9 @@ function makeType(def: any): string {
 }
 
 function extractColumnLib(
+	// biome-ignore lint/suspicious/noExplicitAny: node-sql-parser definition objects
 	def: any,
-	tableName: string,
+	_tableName: string,
 	tablePks: Set<string>,
 ): ColumnSchema | null {
 	if (def.resource !== "column") return null;
@@ -304,38 +384,43 @@ function extractColumnLib(
 	const refDef = def.reference_definition;
 	if (refDef) {
 		const refTable = refDef.table?.[0]?.table ?? "";
-		const refCol =
-			refDef.definition?.[0]?.column?.expr?.value ?? "";
+		const refCol = refDef.definition?.[0]?.column?.expr?.value ?? "";
 		references = {
 			table: String(refTable).toLowerCase(),
 			column: String(refCol).toLowerCase(),
 		};
 	}
 
-		const raw = def.default_val?.value;
-		const defaultValue = raw != null
-			? (typeof raw === "object" ? (raw.value != null ? String(raw.value) : null) : String(raw))
+	const raw = def.default_val?.value;
+	const defaultValue =
+		raw != null
+			? typeof raw === "object"
+				? raw.value != null
+					? String(raw.value)
+					: null
+				: String(raw)
 			: null;
 
-		return {
-			name,
-			type: makeType(def.definition),
-			isPrimaryKey: !!def.primary_key || tablePks.has(name),
-			isForeignKey: !!references,
-			isUnique: !!def.unique,
-			notNull: def.nullable?.type === "not null",
-			defaultValue,
-			references,
-		};
+	return {
+		name,
+		type: makeType(def.definition),
+		isPrimaryKey: !!def.primary_key || tablePks.has(name),
+		isForeignKey: !!references,
+		isUnique: !!def.unique,
+		notNull: def.nullable?.type === "not null",
+		defaultValue,
+		references,
+	};
 }
 
-function extractFksLib(
-	defs: any[],
-	tableName: string,
-): ForeignKey[] {
+// biome-ignore lint/suspicious/noExplicitAny: node-sql-parser definitions array
+function extractFksLib(defs: any[], tableName: string): ForeignKey[] {
 	const fks: ForeignKey[] = [];
 	for (const def of defs) {
-		if (def.resource === "constraint" && def.constraint_type === "FOREIGN KEY") {
+		if (
+			def.resource === "constraint" &&
+			def.constraint_type === "FOREIGN KEY"
+		) {
 			const col = def.definition?.[0]?.column?.expr?.value;
 			if (!col) continue;
 			const refTable = def.reference_definition?.table?.[0]?.table ?? "";
@@ -384,7 +469,7 @@ function parseWithLib(
 
 	const stmts = cleaned
 		.split(";")
-		.map((s) => (s.trim() + ";").trim())
+		.map((s) => `${s.trim()};`.trim())
 		.filter((s) => s.length > 1);
 
 	for (const stmt of stmts) {
@@ -408,10 +493,10 @@ function parseWithLib(
 							const cn = d.column?.column?.expr?.value;
 							if (cn) pks.add(String(cn).toLowerCase());
 						}
-					if (
-						d.resource === "constraint" &&
-						d.constraint_type?.toUpperCase() === "PRIMARY KEY"
-					) {
+						if (
+							d.resource === "constraint" &&
+							d.constraint_type?.toUpperCase() === "PRIMARY KEY"
+						) {
 							for (const ref of d.definition ?? []) {
 								const cn = ref.column?.expr?.value;
 								if (cn) pks.add(String(cn).toLowerCase());
@@ -476,8 +561,7 @@ function parseWithLib(
 								const col = cd.definition?.[0]?.column?.expr?.value;
 								if (!col) continue;
 								const cName = String(col).toLowerCase();
-								if (table.foreignKeys.some((f) => f.column === cName))
-									continue;
+								if (table.foreignKeys.some((f) => f.column === cName)) continue;
 								const refTable =
 									cd.reference_definition?.table?.[0]?.table ?? "";
 								const refCol =
@@ -504,9 +588,9 @@ function parseWithLib(
 					}
 				}
 			}
-		} catch (e: any) {
+		} catch (e) {
 			// Library parse error — add as issue, keep going
-			const raw = e.message ?? "";
+			const raw = (e as Error).message ?? "";
 			let friendly = raw;
 			if (/expected/i.test(raw) && /\bbut\b/i.test(raw)) {
 				const preview = stmt.replace(/\s+/g, " ").slice(0, 60).trim();
@@ -599,9 +683,7 @@ function parseCreateTable(
 
 		const uniqueMatch = /^\s*unique\s*\(([^)]+)\)\s*/i.exec(trimmed);
 		if (uniqueMatch) {
-			const cols = uniqueMatch[1]
-				.split(",")
-				.map((c) => c.trim().toLowerCase());
+			const cols = uniqueMatch[1].split(",").map((c) => c.trim().toLowerCase());
 			for (const col of cols) {
 				const found = tables[name].columns.find((c) => c.name === col);
 				if (found) found.isUnique = true;
@@ -614,12 +696,8 @@ function parseCreateTable(
 				trimmed,
 			);
 		if (constraintMatch) {
-			const constraintBody = trimmed.replace(
-				/^\s*constraint\s+\w+\s+/i,
-				"",
-			);
-			const pkC =
-				/^\s*primary\s+key\s*\(([^)]+)\)\s*/i.exec(constraintBody);
+			const constraintBody = trimmed.replace(/^\s*constraint\s+\w+\s+/i, "");
+			const pkC = /^\s*primary\s+key\s*\(([^)]+)\)\s*/i.exec(constraintBody);
 			if (pkC) {
 				tables[name].primaryKey = pkC[1]
 					.split(",")
@@ -634,19 +712,15 @@ function parseCreateTable(
 				tables[name].foreignKeys.push({
 					name: `${name}_${fkC[1]}_fkey`,
 					column: fkC[1].toLowerCase(),
-					referencedTable:
-						(fkC[2] ?? "").toLowerCase() || fkC[3].toLowerCase(),
+					referencedTable: (fkC[2] ?? "").toLowerCase() || fkC[3].toLowerCase(),
 					referencedColumn: fkC[4].toLowerCase(),
 					isUnique: false,
 				});
 				continue;
 			}
-			const uC =
-				/^\s*unique\s*\(([^)]+)\)\s*/i.exec(constraintBody);
+			const uC = /^\s*unique\s*\(([^)]+)\)\s*/i.exec(constraintBody);
 			if (uC) {
-				const cols = uC[1]
-					.split(",")
-					.map((c) => c.trim().toLowerCase());
+				const cols = uC[1].split(",").map((c) => c.trim().toLowerCase());
 				for (const col of cols) {
 					const found = tables[name].columns.find((c) => c.name === col);
 					if (found) found.isUnique = true;
@@ -739,8 +813,7 @@ function parseColumn(
 	const defaultValue = defaultMatch ? defaultMatch[1] : null;
 
 	let references: { table: string; column: string } | null = null;
-	const refMatch =
-		/\bREFERENCES\s+(?:(\w+)\.)?(\w+)\s*\((\w+)\)/i.exec(rest);
+	const refMatch = /\bREFERENCES\s+(?:(\w+)\.)?(\w+)\s*\((\w+)\)/i.exec(rest);
 	if (refMatch) {
 		references = {
 			table: (refMatch[1] ?? "").toLowerCase() || refMatch[2].toLowerCase(),
@@ -764,7 +837,10 @@ function parseColumn(
 		);
 		remaining = remaining.replace(/\bCODEC\s*\([^)]*\)/gi, "");
 		remaining = remaining.replace(/\bTTL\s+\S+(?:\s+TO\s+\S+)?/gi, "");
-		remaining = remaining.replace(/\b(?:ALIAS|MATERIALIZED|EPHEMERAL|SIGNED|UNSIGNED|INDEX|PROJECTION)\b/gi, "");
+		remaining = remaining.replace(
+			/\b(?:ALIAS|MATERIALIZED|EPHEMERAL|SIGNED|UNSIGNED|INDEX|PROJECTION)\b/gi,
+			"",
+		);
 		remaining = remaining.replace(/\s+/g, " ").trim();
 		if (remaining) {
 			issues.push({
@@ -920,7 +996,12 @@ function parseWithCustom(
 
 /* ---------- Linting for library-parsed tables ---------- */
 
-function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[], databaseType: DatabaseType = "postgresql"): void {
+function lintTables(
+	tables: TableSchema[],
+	ddl: string,
+	issues: SchemaIssue[],
+	databaseType: DatabaseType = "postgresql",
+): void {
 	for (const table of tables) {
 		const safe = table.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 		const nameRe = new RegExp(
@@ -936,8 +1017,11 @@ function lintTables(tables: TableSchema[], ddl: string, issues: SchemaIssue[], d
 			const trimmed = line.trim();
 			if (!trimmed || trimmed === ",") continue;
 			if (
-				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(trimmed)
-			) continue;
+				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(
+					trimmed,
+				)
+			)
+				continue;
 			parseColumn(trimmed, issues, table.name, databaseType);
 		}
 	}
@@ -952,7 +1036,10 @@ function detectDatabaseType(ddl: string): DatabaseType {
 	return CLICKHOUSE_PATTERN.test(ddl) ? "clickhouse" : "postgresql";
 }
 
-export function parseSchema(ddl: string, databaseType?: DatabaseType): ParsedSchema {
+export function parseSchema(
+	ddl: string,
+	databaseType?: DatabaseType,
+): ParsedSchema {
 	const cleaned = stripComments(ddl);
 	const dbType = databaseType ?? detectDatabaseType(cleaned);
 	const issues: SchemaIssue[] = [];
@@ -975,12 +1062,17 @@ export function parseSchema(ddl: string, databaseType?: DatabaseType): ParsedSch
 
 /* ---------- Fast linter for editor typing (no node-sql-parser) ---------- */
 
-export function lintQuick(ddl: string, databaseType?: DatabaseType): SchemaIssue[] {
+export function lintQuick(
+	ddl: string,
+	databaseType?: DatabaseType,
+): SchemaIssue[] {
 	const cleaned = stripComments(ddl);
-	const dbType = databaseType ?? detectDatabaseType(cleaned);
+	const _dbType = databaseType ?? detectDatabaseType(cleaned);
 	const issues: SchemaIssue[] = [];
-	const tableRegex = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)\s*\(/gi;
+	const tableRegex =
+		/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)\s*\(/gi;
 	let m: RegExpExecArray | null;
+	// biome-ignore lint/suspicious/noAssignInExpressions: standard RegExp loop execution pattern
 	while ((m = tableRegex.exec(cleaned)) !== null) {
 		const name = m[2];
 		const body = extractBody(cleaned.slice(m.index));
@@ -989,7 +1081,12 @@ export function lintQuick(ddl: string, databaseType?: DatabaseType): SchemaIssue
 		for (const line of lines) {
 			const trimmed = line.trim();
 			if (!trimmed || trimmed === ",") continue;
-			if (/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(trimmed)) continue;
+			if (
+				/^\s*(primary\s+key|foreign\s+key|unique\s*\(|constraint|check|engine|order\s+by|partition\s+by|sample\s+by)\b/i.test(
+					trimmed,
+				)
+			)
+				continue;
 			parseColumn(trimmed, issues, name, databaseType);
 		}
 	}

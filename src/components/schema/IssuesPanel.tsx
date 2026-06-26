@@ -1,4 +1,10 @@
-import { AlertCircle, AlertTriangle, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import {
+	AlertCircle,
+	AlertTriangle,
+	ChevronDown,
+	ChevronUp,
+	Copy,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import type { SchemaIssue } from "#/types/schema.ts";
 
@@ -9,7 +15,10 @@ interface IssuesPanelProps {
 
 const severityOrder = { error: 0, warning: 1 };
 
-export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps) {
+export default function IssuesPanel({
+	issues,
+	onJumpToIssue,
+}: IssuesPanelProps) {
 	const [open, setOpen] = useState(true);
 	const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
@@ -24,7 +33,9 @@ export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps)
 			await navigator.clipboard.writeText(text);
 			setCopiedIdx(idx);
 			setTimeout(() => setCopiedIdx(null), 1500);
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 	}, []);
 
 	if (issues.length === 0) return null;
@@ -40,15 +51,30 @@ export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps)
 				onClick={() => setOpen(!open)}
 				className="flex items-center gap-1.5 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/30 shrink-0"
 			>
-				{open ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
+				{open ? (
+					<ChevronDown className="size-3" />
+				) : (
+					<ChevronUp className="size-3" />
+				)}
 				Issues
 				<span className="ml-auto text-xs font-normal normal-case">
 					{sorted.filter((i) => i.type === "error").length > 0 && (
-						<span className="text-destructive font-medium">{sorted.filter((i) => i.type === "error").length} error{sorted.filter((i) => i.type === "error").length !== 1 ? "s" : ""}</span>
+						<span className="text-destructive font-medium">
+							{sorted.filter((i) => i.type === "error").length} error
+							{sorted.filter((i) => i.type === "error").length !== 1 ? "s" : ""}
+						</span>
 					)}
-					{sorted.filter((i) => i.type === "error").length > 0 && sorted.filter((i) => i.type === "warning").length > 0 && <span className="mx-1">·</span>}
+					{sorted.filter((i) => i.type === "error").length > 0 &&
+						sorted.filter((i) => i.type === "warning").length > 0 && (
+							<span className="mx-1">·</span>
+						)}
 					{sorted.filter((i) => i.type === "warning").length > 0 && (
-						<span className="text-chart-4 font-medium">{sorted.filter((i) => i.type === "warning").length} warning{sorted.filter((i) => i.type === "warning").length !== 1 ? "s" : ""}</span>
+						<span className="text-chart-4 font-medium">
+							{sorted.filter((i) => i.type === "warning").length} warning
+							{sorted.filter((i) => i.type === "warning").length !== 1
+								? "s"
+								: ""}
+						</span>
 					)}
 				</span>
 			</button>
@@ -78,7 +104,9 @@ export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps)
 										<AlertTriangle className="size-3.5 mt-0.5 shrink-0 text-chart-4" />
 									)}
 									<div className="min-w-0">
-										<p className="text-foreground/90 leading-snug">{issue.message}</p>
+										<p className="text-foreground/90 leading-snug">
+											{issue.message}
+										</p>
 										{source && (
 											<p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
 												{source}
@@ -93,7 +121,9 @@ export default function IssuesPanel({ issues, onJumpToIssue }: IssuesPanelProps)
 									title="Copy issue"
 								>
 									{copiedIdx === i ? (
-										<span className="text-[10px] text-muted-foreground px-1">Copied</span>
+										<span className="text-[10px] text-muted-foreground px-1">
+											Copied
+										</span>
 									) : (
 										<Copy className="size-3 text-muted-foreground" />
 									)}

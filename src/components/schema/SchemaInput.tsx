@@ -115,7 +115,10 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function findIssuePos(doc: string, issue: SchemaIssue): { from: number; to: number } | null {
+function findIssuePos(
+	doc: string,
+	issue: SchemaIssue,
+): { from: number; to: number } | null {
 	const table = issue.table;
 	const column = issue.column;
 	if (!table) return null;
@@ -158,7 +161,12 @@ const sqlLinter = linter(
 	(view: EditorView) => {
 		const doc = view.state.doc.toString();
 		const issues = lintQuick(doc, currentDatabaseType);
-		const diagnostics: { from: number; to: number; severity: "warning" | "error"; message: string }[] = [];
+		const diagnostics: {
+			from: number;
+			to: number;
+			severity: "warning" | "error";
+			message: string;
+		}[] = [];
 		for (const issue of issues) {
 			const pos = findIssuePos(doc, issue);
 			if (pos) {
@@ -191,7 +199,17 @@ export interface SchemaInputHandle {
 }
 
 const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
-	function SchemaInput({ initialDdl, databaseType = "postgresql", onRender, onChange, onActiveTableChange, onTableDoubleClick }, ref) {
+	function SchemaInput(
+		{
+			initialDdl,
+			databaseType = "postgresql",
+			onRender,
+			onChange,
+			onActiveTableChange,
+			onTableDoubleClick,
+		},
+		ref,
+	) {
 		const { theme } = useTheme();
 		const editorRef = useRef<HTMLDivElement>(null);
 		const viewRef = useRef<EditorView | null>(null);
@@ -260,11 +278,15 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 							const pos = update.state.selection.main.head;
 							const line = update.state.doc.lineAt(pos);
 							const text = line.text;
-							const m = text.match(
+							const m =
+								text.match(
 									/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+(?:\.\w+)?)/i,
-								)
-								?? text.match(/REFERENCES\s+(\w+(?:\.\w+)?)/i);
-							const name = m ? (m[1].includes(".") ? m[1].split(".")[1] : m[1]) : null;
+								) ?? text.match(/REFERENCES\s+(\w+(?:\.\w+)?)/i);
+							const name = m
+								? m[1].includes(".")
+									? m[1].split(".")[1]
+									: m[1]
+								: null;
 							activeTableCb.current?.(name);
 						}
 					}),
@@ -282,7 +304,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 				view.destroy();
 				viewRef.current = null;
 			};
-		}, [initialDark, databaseType]);
+		}, [initialDark, databaseType, initialDdl]);
 
 		useEffect(() => {
 			const view = viewRef.current;

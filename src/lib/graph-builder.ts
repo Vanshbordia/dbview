@@ -1,4 +1,4 @@
-import { MarkerType, type Edge, type Node } from "@xyflow/react";
+import { type Edge, MarkerType, type Node } from "@xyflow/react";
 import dagre from "dagre";
 import type {
 	ForeignKey,
@@ -111,7 +111,7 @@ export function buildGraph(
 			if (!referencedColMap.has(refTable.name)) {
 				referencedColMap.set(refTable.name, new Set());
 			}
-			referencedColMap.get(refTable.name)!.add(resolveRefCol(fk));
+			referencedColMap.get(refTable.name)?.add(resolveRefCol(fk));
 		}
 	}
 
@@ -203,7 +203,11 @@ function layoutNodes(
 	edges: Edge[],
 	direction: LayoutDirection = "TB",
 ): void {
-	type LayoutEntry = { ids: Set<string>; centers: Map<string, { x: number; y: number }>; bb: { x: number; y: number; w: number; h: number } };
+	type LayoutEntry = {
+		ids: Set<string>;
+		centers: Map<string, { x: number; y: number }>;
+		bb: { x: number; y: number; w: number; h: number };
+	};
 
 	// 1. Compute degree (connection count) for each node
 	const degree = new Map<string, number>();
@@ -217,8 +221,8 @@ function layoutNodes(
 	const adj = new Map<string, string[]>();
 	for (const n of nodes) adj.set(n.id, []);
 	for (const e of edges) {
-		adj.get(e.source)!.push(e.target);
-		adj.get(e.target)!.push(e.source);
+		adj.get(e.source)?.push(e.target);
+		adj.get(e.target)?.push(e.source);
 	}
 	const visited = new Set<string>();
 	const rawComps: string[][] = [];
@@ -228,10 +232,15 @@ function layoutNodes(
 		const queue = [node.id];
 		visited.add(node.id);
 		while (queue.length) {
-			const cur = queue.pop()!;
+			const cur = queue.pop();
+			if (cur === undefined) continue;
 			ids.add(cur);
-			for (const nb of adj.get(cur)!) {
-				if (!visited.has(nb)) { visited.add(nb); queue.push(nb); }
+			const neighbors = adj.get(cur) ?? [];
+			for (const nb of neighbors) {
+				if (!visited.has(nb)) {
+					visited.add(nb);
+					queue.push(nb);
+				}
 			}
 		}
 		rawComps.push([...ids]);
@@ -247,7 +256,9 @@ function layoutNodes(
 	for (const compIds of rawComps) {
 		if (compIds.length === 0) continue;
 		const compNodes = nodes.filter((n) => compIds.includes(n.id));
-		const compEdges = edges.filter((e) => compIds.includes(e.source) && compIds.includes(e.target));
+		const compEdges = edges.filter(
+			(e) => compIds.includes(e.source) && compIds.includes(e.target),
+		);
 
 		const g = new dagre.graphlib.Graph();
 		const cnt = compIds.length;
@@ -261,7 +272,10 @@ function layoutNodes(
 			marginy: 16,
 		});
 		for (const n of compNodes) {
-			g.setNode(n.id, { width: n.width ?? NODE_WIDTH, height: n.height ?? 200 });
+			g.setNode(n.id, {
+				width: n.width ?? NODE_WIDTH,
+				height: n.height ?? 200,
+			});
 		}
 		for (const e of compEdges) {
 			g.setEdge(e.source, e.target, { weight: 2 });
@@ -269,7 +283,10 @@ function layoutNodes(
 		dagre.layout(g);
 
 		const centers = new Map<string, { x: number; y: number }>();
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
 		for (const n of compNodes) {
 			const p = g.node(n.id);
 			if (!p) continue;
@@ -294,7 +311,10 @@ function layoutNodes(
 	const PAD = 40;
 	layouts.sort((a, b) => (isTB ? b.bb.w - a.bb.w : b.bb.h - a.bb.h));
 
-	interface RowInfo { offset: number; crossSize: number }
+	interface RowInfo {
+		offset: number;
+		crossSize: number;
+	}
 	const rows: RowInfo[] = [];
 	const layoutAssignments: { rowIdx: number; flowStart: number }[] = [];
 	const ROW_MAX = isTB ? 1400 : 800;
@@ -304,7 +324,11 @@ function layoutNodes(
 		const crossDim = isTB ? lay.bb.h : lay.bb.w;
 		let rowIdx = rows.length;
 		for (let i = 0; i <= rows.length; i++) {
-			if (i === rows.length) { rows.push({ offset: PAD, crossSize: 0 }); rowIdx = i; break; }
+			if (i === rows.length) {
+				rows.push({ offset: PAD, crossSize: 0 });
+				rowIdx = i;
+				break;
+			}
 			if (rows[i].offset + flowDim + gap <= ROW_MAX) {
 				rowIdx = i;
 				break;
@@ -330,8 +354,8 @@ function layoutNodes(
 		for (const [id, c] of lay.centers) {
 			const n = nodes.find((nd) => nd.id === id);
 			if (!n) continue;
-			const nx = (c.x - lay.bb.x) + dx;
-			const ny = (c.y - lay.bb.y) + dy;
+			const nx = c.x - lay.bb.x + dx;
+			const ny = c.y - lay.bb.y + dy;
 			n.position = {
 				x: nx - (n.width ?? NODE_WIDTH) / 2,
 				y: ny - (n.height ?? 200) / 2,
