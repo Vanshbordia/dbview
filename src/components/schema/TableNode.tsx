@@ -106,6 +106,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 
 	// Produce a stable key that changes whenever any connected node moves horizontally
 	const handleLayoutKey = useMemo(() => {
+		const myKey = Math.round(cx);
 		return allEdges
 			.filter((e) => e.source === id || e.target === id)
 			.map((e) => {
@@ -115,8 +116,8 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 				const ox = Math.round(other.position.x + (other.width ?? 300) / 2);
 				return `${e.id}:${ox}`;
 			})
-			.join("|");
-	}, [id, allNodes, allEdges]);
+			.join("|") + `|@${myKey}`;
+	}, [id, allNodes, allEdges, cx]);
 
 	useLayoutEffect(() => {
 		updateNodeInternals(id);
@@ -162,7 +163,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 				background: "var(--card)",
 				backdropFilter: "blur(6px)",
 				width: 300,
-				overflow: "hidden",
+				overflow: "visible",
 				...(subSelected && !selected ? { borderColor: "var(--edge-ref)" } : {}),
 			}}
 		>
