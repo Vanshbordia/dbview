@@ -20,7 +20,6 @@ import {
 	type LayoutDirection,
 	type TableNodeType,
 } from "#/lib/graph-builder.ts";
-import type { Project } from "#/lib/project-store.ts";
 import type { ParsedSchema, TableSchema } from "#/types/schema.ts";
 import RelationshipEdge from "./RelationshipEdge.tsx";
 import TableInfoPanel from "./TableInfoPanel.tsx";
@@ -54,7 +53,17 @@ interface SchemaGraphProps {
 	focusTarget?: FocusTarget | null;
 }
 
-export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActiveTableChange, erroredTables, projectList, onNewProject, onOpenProject, focusTarget }: SchemaGraphProps) {
+export default function SchemaGraph({
+	schema,
+	edgeStyle,
+	activeTableName,
+	onActiveTableChange,
+	erroredTables,
+	projectList,
+	onNewProject,
+	onOpenProject,
+	focusTarget,
+}: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 	const [layoutDir, setLayoutDir] = useState<LayoutDirection>("TB");
@@ -69,7 +78,8 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			setEdges((prev) =>
 				prev.map((e) => {
 					if (!nodeId) {
-						const { highlighted, subHighlighted, hasSubSelection, ...rest } = e.data ?? {};
+						const { highlighted, subHighlighted, hasSubSelection, ...rest } =
+							e.data ?? {};
 						return {
 							...e,
 							data: Object.keys(rest).length > 0 ? rest : undefined,
@@ -78,7 +88,12 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 					const match = e.source === nodeId || e.target === nodeId;
 					return {
 						...e,
-						data: { ...(e.data ?? {}), highlighted: match, subHighlighted: false, hasSubSelection: false },
+						data: {
+							...(e.data ?? {}),
+							highlighted: match,
+							subHighlighted: false,
+							hasSubSelection: false,
+						},
 					};
 				}),
 			);
@@ -90,10 +105,16 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 		(selectedId: string, otherId: string) => {
 			setEdges((prev) =>
 				prev.map((e) => {
-					const isConnected = (e.source === selectedId && e.target === otherId) || (e.source === otherId && e.target === selectedId);
+					const isConnected =
+						(e.source === selectedId && e.target === otherId) ||
+						(e.source === otherId && e.target === selectedId);
 					return {
 						...e,
-						data: { ...(e.data ?? {}), subHighlighted: isConnected, hasSubSelection: true },
+						data: {
+							...(e.data ?? {}),
+							subHighlighted: isConnected,
+							hasSubSelection: true,
+						},
 					};
 				}),
 			);
@@ -119,7 +140,9 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 		return schema.tables.flatMap((t) =>
 			t.foreignKeys
 				.filter((fk) => {
-					const refName = fk.referencedTable.includes(".") ? fk.referencedTable.split(".")[1] : fk.referencedTable;
+					const refName = fk.referencedTable.includes(".")
+						? fk.referencedTable.split(".")[1]
+						: fk.referencedTable;
 					return refName === selectedTable.name;
 				})
 				.map((fk) => ({
@@ -143,7 +166,15 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			const bounds = getNodesBounds([currentId, tableName]);
 			fitBounds(bounds, { padding: 0.5, duration: 400 });
 		},
-		[schema, selectedTable, subSelectedId, getNodesBounds, fitBounds, subHighlightEdge, clearSubHighlight],
+		[
+			schema,
+			selectedTable,
+			subSelectedId,
+			getNodesBounds,
+			fitBounds,
+			subHighlightEdge,
+			clearSubHighlight,
+		],
 	);
 
 	useEffect(() => {
@@ -153,7 +184,12 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			return;
 		}
 
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyle, erroredTables);
+		const { nodes: newNodes, edges: newEdges } = buildGraph(
+			schema,
+			layoutDir,
+			edgeStyle,
+			erroredTables,
+		);
 		setNodes(newNodes);
 		setEdges(newEdges);
 	}, [schema, layoutDir, edgeStyle, erroredTables, setNodes, setEdges]);
@@ -163,7 +199,7 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 			nds.map((n) => ({ ...n, selected: n.id === activeTableName })),
 		);
 		highlightEdges(activeTableName ?? null);
-	}, [activeTableName, setNodes, setEdges]);
+	}, [activeTableName, setNodes, highlightEdges]);
 
 	useEffect(() => {
 		setNodes((nds) =>
@@ -176,7 +212,12 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 
 	const handleRelayout = useCallback(() => {
 		if (!schema) return;
-		const { nodes: newNodes, edges: newEdges } = buildGraph(schema, layoutDir, edgeStyleRef.current, erroredTables);
+		const { nodes: newNodes, edges: newEdges } = buildGraph(
+			schema,
+			layoutDir,
+			edgeStyleRef.current,
+			erroredTables,
+		);
 		setNodes(newNodes);
 		setEdges(newEdges);
 	}, [schema, layoutDir, erroredTables, setNodes, setEdges]);
@@ -185,9 +226,14 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 	useEffect(() => {
 		if (schema?.tables.length) {
 			if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-			focusTimerRef.current = setTimeout(() => fitView({ padding: 0.3, duration: 300 }), 0);
+			focusTimerRef.current = setTimeout(
+				() => fitView({ padding: 0.3, duration: 300 }),
+				0,
+			);
 		}
-		return () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current); };
+		return () => {
+			if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+		};
 	}, [schema, fitView]);
 
 	useEffect(() => {
@@ -315,7 +361,12 @@ export default function SchemaGraph({ schema, edgeStyle, activeTableName, onActi
 					<TableInfoPanel
 						table={selectedTable}
 						incomingRefs={incomingRefs}
-						onClose={() => { setSelectedTable(null); setSubSelectedId(null); highlightEdges(null); onActiveTableChange?.(null); }}
+						onClose={() => {
+							setSelectedTable(null);
+							setSubSelectedId(null);
+							highlightEdges(null);
+							onActiveTableChange?.(null);
+						}}
 						onRefClick={handleRefClick}
 					/>
 				</Panel>

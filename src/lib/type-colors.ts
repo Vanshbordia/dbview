@@ -24,7 +24,8 @@ const TYPE_COLORS: Record<string, string> = {
 		"bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 	TEXT: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 	CHAR: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-	STRING: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+	STRING:
+		"bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 	FIXEDSTRING:
 		"bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 	TIMESTAMP:
@@ -35,7 +36,8 @@ const TYPE_COLORS: Record<string, string> = {
 		"bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
 	DATETIME64:
 		"bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-	DATE32: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+	DATE32:
+		"bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
 	NUMERIC:
 		"bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
 	DECIMAL:
@@ -57,11 +59,12 @@ const TYPE_COLORS: Record<string, string> = {
 	MAP: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
 	LOWCARDINALITY:
 		"bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-	NULLABLE:
-		"bg-zinc-100 text-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300",
+	NULLABLE: "bg-zinc-100 text-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300",
 	TUPLE: "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
-	ENUM8: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-	ENUM16: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+	ENUM8:
+		"bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+	ENUM16:
+		"bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
 	IPV4: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
 	IPV6: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
 	NESTED: "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
@@ -69,7 +72,10 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function getTypeColor(type: string): string {
-	const base = type.replace(/\(.*\)/, "").trim().toUpperCase();
+	const base = type
+		.replace(/\(.*\)/, "")
+		.trim()
+		.toUpperCase();
 	return (
 		TYPE_COLORS[base] ??
 		"bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"

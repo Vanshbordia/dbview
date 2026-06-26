@@ -1,12 +1,7 @@
-import {
-	Database,
-	Paintbrush,
-	Settings,
-	type LucideIcon,
-} from "lucide-react";
+import { Database, type LucideIcon, Paintbrush, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DatabaseType } from "#/types/schema.ts";
 import type { EdgeStyle } from "#/lib/graph-builder.ts";
+import type { DatabaseType } from "#/types/schema.ts";
 import type { useTheme } from "../theme-provider.tsx";
 import {
 	Dialog,
@@ -89,10 +84,7 @@ export default function SettingsDialog({
 						</header>
 						<div className="flex-1 overflow-y-auto p-4 space-y-6">
 							{activeNav === "appearance" && (
-								<AppearanceSection
-									theme={theme}
-									setTheme={setTheme}
-								/>
+								<AppearanceSection theme={theme} setTheme={setTheme} />
 							)}
 							{activeNav === "graph" && (
 								<GraphSection
@@ -177,8 +169,16 @@ function ProjectSection({
 	onDatabaseTypeChange: (type: DatabaseType) => void;
 }) {
 	const options: { value: DatabaseType; label: string; desc: string }[] = [
-		{ value: "postgresql", label: "PostgreSQL", desc: "Relational database with rich type system" },
-		{ value: "clickhouse", label: "ClickHouse", desc: "Column-oriented OLAP database" },
+		{
+			value: "postgresql",
+			label: "PostgreSQL",
+			desc: "Relational database with rich type system",
+		},
+		{
+			value: "clickhouse",
+			label: "ClickHouse",
+			desc: "Column-oriented OLAP database",
+		},
 	];
 
 	return (
@@ -233,12 +233,18 @@ function GraphSection({
 					Choose how relationship edges are drawn between tables.
 				</p>
 				<div className="flex gap-2">
-					{(
-						[
-							{ value: "bezier" as EdgeStyle, label: "Curved", desc: "Smooth bezier curves" },
-							{ value: "smoothstep" as EdgeStyle, label: "Angled", desc: "Straight lines with right-angle turns" },
-						]
-					).map((opt) => (
+					{[
+						{
+							value: "bezier" as EdgeStyle,
+							label: "Curved",
+							desc: "Smooth bezier curves",
+						},
+						{
+							value: "smoothstep" as EdgeStyle,
+							label: "Angled",
+							desc: "Straight lines with right-angle turns",
+						},
+					].map((opt) => (
 						<button
 							key={opt.value}
 							type="button"
