@@ -796,7 +796,7 @@ function parseColumn(
 	let idx = 2;
 	while (
 		idx < parts.length &&
-		!/^(PRIMARY|REFERENCES|UNIQUE|NOT|DEFAULT|CONSTRAINT|CODEC|TTL|ALIAS|MATERIALIZED|EPHEMERAL|INDEX|PROJECTION|ORDER|SIGNED|UNSIGNED)$/i.test(
+		!/^(PRIMARY|REFERENCES|UNIQUE|NOT|DEFAULT|CONSTRAINT|CODEC|TTL|ALIAS|MATERIALIZED|EPHEMERAL|INDEX|PROJECTION|ORDER|SIGNED|UNSIGNED|CHECK)$/i.test(
 			parts[idx].replace(/\(.*/i, ""),
 		)
 	) {
@@ -837,10 +837,7 @@ function parseColumn(
 		);
 		remaining = remaining.replace(/\bCODEC\s*\([^)]*\)/gi, "");
 		remaining = remaining.replace(/\bTTL\s+\S+(?:\s+TO\s+\S+)?/gi, "");
-		remaining = remaining.replace(
-			/\b(?:ALIAS|MATERIALIZED|EPHEMERAL|SIGNED|UNSIGNED|INDEX|PROJECTION)\b/gi,
-			"",
-		);
+		remaining = remaining.replace(/\bCHECK\s*\(.*\)/gi, "");
 		remaining = remaining.replace(/\s+/g, " ").trim();
 		if (remaining) {
 			issues.push({

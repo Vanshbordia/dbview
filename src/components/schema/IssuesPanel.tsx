@@ -45,7 +45,7 @@ export default function IssuesPanel({
 	);
 
 	return (
-		<div className="border-t border-border bg-muted/20 shrink-0 flex flex-col max-h-[200px] min-h-0">
+		<div className="border-t border-border bg-muted/20 shrink-0 flex flex-col max-h-50 min-h-0">
 			<button
 				type="button"
 				onClick={() => setOpen(!open)}
@@ -89,7 +89,7 @@ export default function IssuesPanel({
 							: null;
 						return (
 							<div
-								key={`${issue.table ?? ""}-${issue.column ?? ""}-${issue.message}`}
+								key={`${issue.table ?? ""}-${issue.column ?? ""}-${issue.message}-${issue.line ?? i}`}
 								className="group flex items-start gap-2 w-full text-left px-3 py-1.5 text-xs border-b border-border/40 last:border-b-0"
 							>
 								<button

@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import type { Edge, Node } from "@xyflow/react";
-import { Maximize2, RefreshCw, Shuffle } from "lucide-react";
+import { Maximize2, RefreshCw, Shuffle, Download } from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
 import {
 	buildGraph,
@@ -25,6 +25,17 @@ import RelationshipEdge from "./RelationshipEdge.tsx";
 import TableInfoPanel from "./TableInfoPanel.tsx";
 import TableNode from "./TableNode.tsx";
 import WelcomeScreen from "./WelcomeScreen.tsx";
+import { useTheme } from "../theme-provider.tsx";
+import { exportGraph } from "#/lib/graph-exporter.ts";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/ui/dialog.tsx";
+import { toast } from "sonner";
 
 const nodeTypes = { table: TableNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -51,6 +62,8 @@ interface SchemaGraphProps {
 	onNewProject: () => void;
 	onOpenProject: (id: string) => void;
 	focusTarget?: FocusTarget | null;
+	exportDialogOpen: boolean;
+	onExportDialogOpenChange: (open: boolean) => void;
 }
 
 export default function SchemaGraph({
@@ -63,6 +76,8 @@ export default function SchemaGraph({
 	onNewProject,
 	onOpenProject,
 	focusTarget,
+	exportDialogOpen,
+	onExportDialogOpenChange,
 }: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -70,8 +85,19 @@ export default function SchemaGraph({
 	const [selectedTable, setSelectedTable] = useState<TableSchema | null>(null);
 	const [subSelectedId, setSubSelectedId] = useState<string | null>(null);
 	const { fitView, fitBounds, getNodesBounds } = useReactFlow();
+	const reactFlowInstance = useReactFlow();
 	const edgeStyleRef = useRef(edgeStyle);
 	edgeStyleRef.current = edgeStyle;
+
+	const { theme } = useTheme();
+	const reactFlowWrapperRef = useRef<HTMLDivElement>(null);
+	
+	// Export configuration states
+	const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
+	const [exportScale, setExportScale] = useState<number>(2);
+	const [exportExcludeBg, setExportExcludeBg] = useState(false);
+	const [exportSelectedOnly, setExportSelectedOnly] = useState(false);
+	const [isExporting, setIsExporting] = useState(false);
 
 	const highlightEdges = useCallback(
 		(nodeId: string | null) => {
@@ -276,6 +302,38 @@ export default function SchemaGraph({
 		fitView({ padding: 0.3, duration: 300 });
 	}, [fitView]);
 
+	// Export trigger logic
+	const handlePerformExport = useCallback(async () => {
+		if (!reactFlowWrapperRef.current) return;
+		
+		const rfViewport = reactFlowWrapperRef.current.querySelector(".react-flow__viewport") as HTMLElement;
+		if (!rfViewport) {
+			toast.error("React Flow viewport element not found.");
+			return;
+		}
+
+		setIsExporting(true);
+		try {
+			await exportGraph(
+				rfViewport,
+				{
+					format: exportFormat,
+					scale: exportScale,
+					excludeBg: exportExcludeBg,
+					selectedOnly: exportSelectedOnly,
+					theme,
+				},
+				reactFlowInstance,
+			);
+			toast.success("Graph exported successfully!");
+			onExportDialogOpenChange(false);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to export graph.");
+		} finally {
+			setIsExporting(false);
+		}
+	}, [exportFormat, exportScale, exportExcludeBg, exportSelectedOnly, theme, reactFlowInstance, onExportDialogOpenChange]);
+
 	if (!schema || schema.tables.length === 0) {
 		return (
 			<WelcomeScreen
@@ -287,90 +345,209 @@ export default function SchemaGraph({
 	}
 
 	return (
-		<ReactFlow
-			nodes={nodes}
-			edges={edges}
-			onNodesChange={onNodesChange}
-			onEdgesChange={onEdgesChange}
-			onConnect={onConnect}
-			onNodeClick={onNodeClick}
-			onPaneClick={onPaneClick}
-			nodeTypes={nodeTypes}
-			edgeTypes={edgeTypes}
-			defaultEdgeOptions={defaultEdgeOptions}
-			fitView
-			fitViewOptions={{ padding: 0.3 }}
-			minZoom={0.1}
-			maxZoom={2}
-			panOnScroll
-			selectionOnDrag
-			panOnDrag={[1, 2]}
-			deleteKeyCode="Delete"
-			className="bg-transparent"
-		>
-			<Background
-				variant={BackgroundVariant.Dots}
-				gap={20}
-				size={1}
-				color="var(--border)"
-			/>
-			<Controls className="!bg-card !border-border !shadow-sm" />
-			<MiniMap
-				pannable
-				zoomable
-				nodeStrokeWidth={2}
-				nodeColor="var(--primary)"
-				maskColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
-				className="!bg-card !border !border-border !rounded-lg !shadow-sm"
-			/>
+		<div ref={reactFlowWrapperRef} className="w-full h-full relative">
+			<ReactFlow
+				nodes={nodes}
+				edges={edges}
+				onNodesChange={onNodesChange}
+				onEdgesChange={onEdgesChange}
+				onConnect={onConnect}
+				onNodeClick={onNodeClick}
+				onPaneClick={onPaneClick}
+				nodeTypes={nodeTypes}
+				edgeTypes={edgeTypes}
+				defaultEdgeOptions={defaultEdgeOptions}
+				fitView
+				fitViewOptions={{ padding: 0.3 }}
+				minZoom={0.1}
+				maxZoom={2}
+				panOnScroll
+				selectionOnDrag
+				panOnDrag={[1, 2]}
+				deleteKeyCode="Delete"
+				className="bg-transparent"
+			>
+				<Background
+					variant={BackgroundVariant.Dots}
+					gap={20}
+					size={1}
+					color="var(--border)"
+				/>
+				<Controls className="!bg-card !border-border !shadow-sm" />
+				<MiniMap
+					pannable
+					zoomable
+					nodeStrokeWidth={2}
+					nodeColor="var(--primary)"
+					maskColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
+					className="!bg-card !border !border-border !rounded-lg !shadow-sm"
+				/>
 
-			<Panel position="top-left">
-				<div className="flex gap-1 p-1 rounded-lg shadow-lg border border-border bg-card/90 backdrop-blur-sm">
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						onClick={handleRelayout}
-						title="Re-layout graph"
-					>
-						<RefreshCw className="size-3.5" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						onClick={handleFitView}
-						title="Fit view"
-					>
-						<Maximize2 className="size-3.5" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						onClick={handleToggleDirection}
-						title={`Switch to ${layoutDir === "TB" ? "horizontal" : "vertical"} layout`}
-					>
-						<Shuffle className="size-3.5" />
-					</Button>
-					<span className="flex items-center px-1.5 text-2xs font-mono font-semibold opacity-60 select-none text-muted-foreground">
-						{layoutDir}
-					</span>
-				</div>
-			</Panel>
-
-			{selectedTable && (
-				<Panel position="top-right">
-					<TableInfoPanel
-						table={selectedTable}
-						incomingRefs={incomingRefs}
-						onClose={() => {
-							setSelectedTable(null);
-							setSubSelectedId(null);
-							highlightEdges(null);
-							onActiveTableChange?.(null);
-						}}
-						onRefClick={handleRefClick}
-					/>
+				<Panel position="top-left">
+					<div className="flex gap-1 p-1 rounded-lg shadow-lg border border-border bg-card/90 backdrop-blur-sm">
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							onClick={handleRelayout}
+							title="Re-layout graph"
+						>
+							<RefreshCw className="size-3.5" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							onClick={handleFitView}
+							title="Fit view"
+						>
+							<Maximize2 className="size-3.5" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							onClick={handleToggleDirection}
+							title={`Switch to ${layoutDir === "TB" ? "horizontal" : "vertical"} layout`}
+						>
+							<Shuffle className="size-3.5" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							onClick={() => onExportDialogOpenChange(true)}
+							title="Export schema as image"
+						>
+							<Download className="size-3.5" />
+						</Button>
+						<span className="flex items-center px-1.5 text-2xs font-mono font-semibold opacity-60 select-none text-muted-foreground">
+							{layoutDir}
+						</span>
+					</div>
 				</Panel>
-			)}
-		</ReactFlow>
+
+				{selectedTable && (
+					<Panel position="top-right">
+						<TableInfoPanel
+							table={selectedTable}
+							incomingRefs={incomingRefs}
+							onClose={() => {
+								setSelectedTable(null);
+								setSubSelectedId(null);
+								highlightEdges(null);
+								onActiveTableChange?.(null);
+							}}
+							onRefClick={handleRefClick}
+						/>
+					</Panel>
+				)}
+			</ReactFlow>
+
+			{/* Export Image Configuration Dialog */}
+			<Dialog open={exportDialogOpen} onOpenChange={onExportDialogOpenChange}>
+				<DialogContent className="sm:max-w-md bg-card text-foreground border-border">
+					<DialogHeader>
+						<DialogTitle className="text-foreground">Export Schema Image</DialogTitle>
+						<DialogDescription className="text-muted-foreground">
+							Export your ER diagram to PNG or SVG with customized export parameters.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						{/* Format Selector */}
+						<div className="grid grid-cols-4 items-center gap-4">
+							<span className="text-right text-xs font-semibold text-muted-foreground">Format</span>
+							<div className="col-span-3 flex gap-2">
+								<Button
+									type="button"
+									variant={exportFormat === "png" ? "default" : "outline"}
+									size="sm"
+									onClick={() => setExportFormat("png")}
+									className="flex-1"
+								>
+									PNG
+								</Button>
+								<Button
+									type="button"
+									variant={exportFormat === "svg" ? "default" : "outline"}
+									size="sm"
+									onClick={() => setExportFormat("svg")}
+									className="flex-1"
+								>
+									SVG
+								</Button>
+							</div>
+						</div>
+
+						{/* Scale Multiplier for PNG only */}
+						{exportFormat === "png" && (
+							<div className="grid grid-cols-4 items-center gap-4">
+								<span className="text-right text-xs font-semibold text-muted-foreground">Resolution</span>
+								<div className="col-span-3 flex gap-2">
+									{[1, 2, 3].map((scale) => (
+										<Button
+											key={scale}
+											type="button"
+											variant={exportScale === scale ? "default" : "outline"}
+											size="sm"
+											onClick={() => setExportScale(scale)}
+											className="flex-1"
+										>
+											{scale}x
+										</Button>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* Background Toggle */}
+						<div className="grid grid-cols-4 items-center gap-4">
+							<span className="text-right text-xs font-semibold text-muted-foreground">Background</span>
+							<div className="col-span-3 flex items-center">
+								<label className="flex items-center gap-2 cursor-pointer text-xs select-none text-foreground font-medium">
+									<input
+										type="checkbox"
+										checked={exportExcludeBg}
+										onChange={(e) => setExportExcludeBg(e.target.checked)}
+										className="rounded border-border text-primary focus:ring-primary size-4 bg-background"
+									/>
+									Transparent Background
+								</label>
+							</div>
+						</div>
+
+						{/* Scope Selection */}
+						<div className="grid grid-cols-4 items-center gap-4">
+							<span className="text-right text-xs font-semibold text-muted-foreground">Scope</span>
+							<div className="col-span-3 flex items-center">
+								<label className="flex items-center gap-2 cursor-pointer text-xs select-none text-foreground font-medium">
+									<input
+										type="checkbox"
+										checked={exportSelectedOnly}
+										onChange={(e) => setExportSelectedOnly(e.target.checked)}
+										className="rounded border-border text-primary focus:ring-primary size-4 bg-background"
+									/>
+									Selected Tables Only
+								</label>
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => onExportDialogOpenChange(false)}
+							disabled={isExporting}
+						>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							onClick={handlePerformExport}
+							disabled={isExporting}
+						>
+							{isExporting ? "Exporting..." : "Export"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
 	);
 }
+

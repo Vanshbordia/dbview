@@ -188,7 +188,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 
 	useLayoutEffect(() => {
 		updateNodeInternals(id);
-	}, [id, updateNodeInternals]);
+	}, [id, updateNodeInternals, _handleLayoutKey]);
 
 	// Pre-compute edge lookups per column (hooks must be at top level)
 	const sourceEdgesByColumn = useMemo(() => {
@@ -316,7 +316,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 								const side = computeSide(cx, targetNode, Position.Right);
 								return (
 									<Handle
-										key={edge.sourceHandle}
+										key={edge.id}
 										type="source"
 										position={side}
 										id={edge.sourceHandle ?? undefined}
@@ -335,7 +335,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 								const relType = edge.data?.type as string | undefined;
 								return (
 									<Handle
-										key={edge.targetHandle}
+										key={edge.id}
 										type="target"
 										position={side}
 										id={edge.targetHandle ?? undefined}

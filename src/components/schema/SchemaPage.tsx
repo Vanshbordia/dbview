@@ -9,6 +9,8 @@ import {
 	Sun,
 	Trash2,
 	Upload,
+	Search,
+	Download,
 } from "lucide-react";
 import {
 	type ChangeEvent,
@@ -103,6 +105,10 @@ export default function SchemaPage() {
 		"create" | "rename"
 	>("create");
 
+	// Search and Export states
+	const [searchQuery, setSearchQuery] = useState("");
+	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
 	// Focus target state for double-click panning in graph
 	const focusKeyRef = useRef(0);
 	const [focusTarget, setFocusTarget] = useState<{
@@ -114,6 +120,33 @@ export default function SchemaPage() {
 		focusKeyRef.current++;
 		setFocusTarget({ id: tableName, key: focusKeyRef.current });
 	}, []);
+
+	// Search suggestions logic
+	const searchResults = useMemo(() => {
+		if (!searchQuery.trim() || !schema) return [];
+		const query = searchQuery.toLowerCase();
+		return schema.tables
+			.map((t) => t.name)
+			.filter((name) => name.toLowerCase().includes(query));
+	}, [searchQuery, schema]);
+
+	const handleSearchSelect = useCallback(
+		(tableName: string) => {
+			handleTableDoubleClick(tableName);
+			setActiveTableName(tableName);
+			setSearchQuery("");
+		},
+		[handleTableDoubleClick],
+	);
+
+	const handleSearchKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLInputElement>) => {
+			if (e.key === "Enter" && searchResults.length > 0) {
+				handleSearchSelect(searchResults[0]);
+			}
+		},
+		[searchResults, handleSearchSelect],
+	);
 
 	// On mount, load the active project
 	useEffect(() => {
@@ -410,9 +443,9 @@ export default function SchemaPage() {
 
 	return (
 		<div className="h-dvh w-dvw overflow-hidden flex flex-col bg-background">
-			<Menubar className="shrink-0 rounded-none border-x-0 border-t-0 h-8 px-2 gap-1 bg-muted/10">
+			<Menubar className="shrink-0 rounded-none border-x-0 border-t-0 h-10 px-4 gap-1 bg-muted/10">
 				<MenubarMenu>
-					<MenubarTrigger className="text-xs h-6 px-2">File</MenubarTrigger>
+					<MenubarTrigger className="text-xs h-7 px-3">File</MenubarTrigger>
 					<MenubarContent>
 						<MenubarItem
 							onSelect={() => {
@@ -457,6 +490,11 @@ export default function SchemaPage() {
 						{project && (
 							<>
 								<MenubarSeparator />
+								<MenubarItem onSelect={() => setExportDialogOpen(true)}>
+									<Download className="size-3.5 mr-2" />
+									Export as Image...
+								</MenubarItem>
+								<MenubarSeparator />
 								<MenubarItem
 									onSelect={() => {
 										setSettingsInitialNav("project");
@@ -495,7 +533,7 @@ export default function SchemaPage() {
 				</MenubarMenu>
 
 				<MenubarMenu>
-					<MenubarTrigger className="text-xs h-6 px-2">View</MenubarTrigger>
+					<MenubarTrigger className="text-xs h-7 px-3">View</MenubarTrigger>
 					<MenubarContent>
 						<MenubarItem onSelect={toggleEditor}>
 							{editorOpen ? "Hide Editor" : "Show Editor"}
@@ -546,7 +584,45 @@ export default function SchemaPage() {
 					</MenubarContent>
 				</MenubarMenu>
 
-				<div className="ml-auto flex items-center gap-2">
+				<div className="ml-auto flex items-center gap-4">
+					{schema && schema.tables.length > 0 && (
+						<div className="relative">
+							<div className="flex items-center gap-1.5 p-1 px-3.5 rounded-full border border-border bg-background/50 focus-within:bg-background/80 transition-colors w-56 h-7">
+								<Search className="size-3.5 text-muted-foreground shrink-0" />
+								<input
+									type="text"
+									placeholder="Search tables..."
+									className="bg-transparent text-2xs outline-none w-full border-none focus:ring-0 placeholder:text-muted-foreground/60 text-foreground"
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									onKeyDown={handleSearchKeyDown}
+								/>
+								{searchQuery && (
+									<button
+										type="button"
+										onClick={() => setSearchQuery("")}
+										className="text-muted-foreground hover:text-foreground text-xs font-semibold px-0.5"
+									>
+										✕
+									</button>
+								)}
+							</div>
+							{searchQuery && searchResults.length > 0 && (
+								<div className="absolute top-8 right-0 w-56 max-h-48 overflow-y-auto rounded-lg shadow-lg border border-border bg-card/95 backdrop-blur-xs p-1 flex flex-col gap-0.5 z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+									{searchResults.map((tableName) => (
+										<button
+											key={tableName}
+											type="button"
+											className="text-left text-2xs px-2 py-1.5 rounded-md hover:bg-accent hover:text-accent-foreground truncate w-full transition-colors font-medium text-foreground"
+											onClick={() => handleSearchSelect(tableName)}
+										>
+											{tableName}
+										</button>
+									))}
+								</div>
+							)}
+						</div>
+					)}
 					{project && (
 						<span className="text-2xs font-medium tracking-tight text-muted-foreground/60 select-none">
 							{project.name}
@@ -612,6 +688,8 @@ export default function SchemaPage() {
 							}}
 							onOpenProject={handleOpenProject}
 							focusTarget={focusTarget}
+							exportDialogOpen={exportDialogOpen}
+							onExportDialogOpenChange={setExportDialogOpen}
 						/>
 					</ReactFlowProvider>
 				</ResizablePanel>
@@ -645,3 +723,4 @@ export default function SchemaPage() {
 		</div>
 	);
 }
+

@@ -68,8 +68,13 @@ export function createProject(
 		createdAt: project.createdAt,
 		updatedAt: project.updatedAt,
 	});
-	saveProjectList(list);
 	saveProject(project);
+	try {
+		saveProjectList(list);
+	} catch (error) {
+		localStorage.removeItem(`dbview:project:${project.id}`);
+		throw error;
+	}
 	return project;
 }
 
