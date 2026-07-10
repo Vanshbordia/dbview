@@ -7,12 +7,13 @@ import {
 	ReactFlow,
 	useEdgesState,
 	useNodesState,
+	useNodesInitialized,
 	useReactFlow,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import type { Edge, Node } from "@xyflow/react";
-import { Maximize2, RefreshCw, Shuffle, Download } from "lucide-react";
+import { Download, Loader2, Maximize2, RefreshCw, Shuffle } from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
 import {
 	buildGraph,
@@ -64,6 +65,10 @@ interface SchemaGraphProps {
 	focusTarget?: FocusTarget | null;
 	exportDialogOpen: boolean;
 	onExportDialogOpenChange: (open: boolean) => void;
+	isExporting: boolean;
+	onExportingChange: (exporting: boolean) => void;
+	isRendering: boolean;
+	onRenderingChange: (rendering: boolean) => void;
 }
 
 export default function SchemaGraph({
@@ -78,6 +83,10 @@ export default function SchemaGraph({
 	focusTarget,
 	exportDialogOpen,
 	onExportDialogOpenChange,
+	isExporting,
+	onExportingChange,
+	isRendering,
+	onRenderingChange,
 }: SchemaGraphProps) {
 	const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -85,6 +94,7 @@ export default function SchemaGraph({
 	const [selectedTable, setSelectedTable] = useState<TableSchema | null>(null);
 	const [subSelectedId, setSubSelectedId] = useState<string | null>(null);
 	const { fitView, fitBounds, getNodesBounds } = useReactFlow();
+	const nodesInitialized = useNodesInitialized();
 	const reactFlowInstance = useReactFlow();
 	const edgeStyleRef = useRef(edgeStyle);
 	edgeStyleRef.current = edgeStyle;
@@ -97,7 +107,6 @@ export default function SchemaGraph({
 	const [exportScale, setExportScale] = useState<number>(2);
 	const [exportExcludeBg, setExportExcludeBg] = useState(false);
 	const [exportSelectedOnly, setExportSelectedOnly] = useState(false);
-	const [isExporting, setIsExporting] = useState(false);
 
 	const highlightEdges = useCallback(
 		(nodeId: string | null) => {
@@ -210,6 +219,9 @@ export default function SchemaGraph({
 			return;
 		}
 
+		// Ensure the overlay is shown for re-layout / direction toggles too
+		// (where `schema` does not change and the Render button isn't involved).
+		onRenderingChange(true);
 		const { nodes: newNodes, edges: newEdges } = buildGraph(
 			schema,
 			layoutDir,
@@ -218,7 +230,16 @@ export default function SchemaGraph({
 		);
 		setNodes(newNodes);
 		setEdges(newEdges);
-	}, [schema, layoutDir, edgeStyle, erroredTables, setNodes, setEdges]);
+	}, [schema, layoutDir, edgeStyle, erroredTables, setNodes, setEdges, onRenderingChange]);
+
+	// Clear the rendering overlay once React Flow has measured/initialized the
+	// (newly built) nodes. A short minimum delay keeps the overlay visible even
+	// when measurement is instant, so the user sees feedback.
+	useEffect(() => {
+		if (!nodesInitialized) return;
+		const t = setTimeout(() => onRenderingChange(false), 250);
+		return () => clearTimeout(t);
+	}, [nodesInitialized, onRenderingChange]);
 
 	useEffect(() => {
 		setNodes((nds) =>
@@ -312,7 +333,12 @@ export default function SchemaGraph({
 			return;
 		}
 
-		setIsExporting(true);
+		onExportingChange(true);
+		// Yield to the event loop (with a small delay) so the browser actually
+		// paints the disabled / "Exporting…" button before the potentially long,
+		// main-thread-blocking export work runs. A single rAF isn't enough
+		// because the synchronous export work would block the queued paint.
+		await new Promise<void>((resolve) => setTimeout(resolve, 50));
 		try {
 			await exportGraph(
 				rfViewport,
@@ -330,23 +356,14 @@ export default function SchemaGraph({
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to export graph.");
 		} finally {
-			setIsExporting(false);
+			onExportingChange(false);
 		}
-	}, [exportFormat, exportScale, exportExcludeBg, exportSelectedOnly, theme, reactFlowInstance, onExportDialogOpenChange]);
-
-	if (!schema || schema.tables.length === 0) {
-		return (
-			<WelcomeScreen
-				projectList={projectList}
-				onNewProject={onNewProject}
-				onOpenProject={onOpenProject}
-			/>
-		);
-	}
+	}, [exportFormat, exportScale, exportExcludeBg, exportSelectedOnly, theme, reactFlowInstance, onExportDialogOpenChange, onExportingChange]);
 
 	return (
 		<div ref={reactFlowWrapperRef} className="w-full h-full relative">
-			<ReactFlow
+			{schema && schema.tables.length > 0 ? (
+				<ReactFlow
 				nodes={nodes}
 				edges={edges}
 				onNodesChange={onNodesChange}
@@ -439,6 +456,25 @@ export default function SchemaGraph({
 					</Panel>
 				)}
 			</ReactFlow>
+			) : (
+				<WelcomeScreen
+					projectList={projectList}
+					onNewProject={onNewProject}
+					onOpenProject={onOpenProject}
+				/>
+			)}
+
+			{/* Rendering overlay: shown while the schema graph is being built/laid out.
+			    Opaque so it fully replaces the underlying area (recent projects,
+			    previous graph, etc.) rather than showing through. */}
+			{isRendering && (
+				<div className="absolute inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-background">
+					<Loader2 className="size-8 animate-spin text-primary" />
+					<span className="text-sm font-medium text-muted-foreground">
+						Rendering schema…
+					</span>
+				</div>
+			)}
 
 			{/* Export Image Configuration Dialog */}
 			<Dialog open={exportDialogOpen} onOpenChange={onExportDialogOpenChange}>
@@ -542,6 +578,9 @@ export default function SchemaGraph({
 							onClick={handlePerformExport}
 							disabled={isExporting}
 						>
+							{isExporting && (
+								<Loader2 className="size-3.5 mr-2 animate-spin" />
+							)}
 							{isExporting ? "Exporting..." : "Export"}
 						</Button>
 					</DialogFooter>

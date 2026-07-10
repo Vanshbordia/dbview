@@ -187,6 +187,10 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 	}, [id, allNodes, allEdges, cx]);
 
 	useLayoutEffect(() => {
+		// _handleLayoutKey is a derived trigger that changes whenever a connected
+		// node moves horizontally; referencing it keeps the effect in sync with
+		// layout changes so handles are re-measured correctly.
+		void _handleLayoutKey;
 		updateNodeInternals(id);
 	}, [id, updateNodeInternals, _handleLayoutKey]);
 

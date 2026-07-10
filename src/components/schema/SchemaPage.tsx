@@ -108,6 +108,8 @@ export default function SchemaPage() {
 	// Search and Export states
 	const [searchQuery, setSearchQuery] = useState("");
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [isExporting, setIsExporting] = useState(false);
+	const [isRendering, setIsRendering] = useState(false);
 
 	// Focus target state for double-click panning in graph
 	const focusKeyRef = useRef(0);
@@ -277,65 +279,76 @@ export default function SchemaPage() {
 	const handleRender = useCallback(
 		(ddl: string) => {
 			clearTimeout(syncTimer.current);
-			try {
-				const parsed = parseSchema(ddl, databaseType);
-				if (parsed.tables.length === 0) {
-					toast.error("No tables found in the DDL. Check your SQL syntax.");
-					return;
-				}
+			// Reflect the loading state on the Render button immediately.
+			setIsRendering(true);
+			// Defer the actual parse + schema update to a later task so the
+			// "Rendering…" UI paints BEFORE the (potentially long) graph
+			// build/layout runs. Otherwise React batches the loading state and
+			// the heavy React Flow reconciliation into one render pass and only
+			// paints once the freeze is over.
+			setTimeout(() => {
+				try {
+					const parsed = parseSchema(ddl, databaseType);
+					if (parsed.tables.length === 0) {
+						toast.error("No tables found in the DDL. Check your SQL syntax.");
+						setIsRendering(false);
+						return;
+					}
 
-				const allIssues: SchemaIssue[] = [...parsed.issues];
+					const allIssues: SchemaIssue[] = [...parsed.issues];
 
-				for (const table of parsed.tables) {
-					for (const fk of table.foreignKeys) {
-						const refTable = parsed.tables.find(
-							(t) =>
-								t.name === fk.referencedTable ||
-								`${t.schema}.${t.name}` === fk.referencedTable,
-						);
-						if (!refTable) {
-							allIssues.push({
-								type: "error",
-								message: `table "${fk.referencedTable}" not created`,
-								table: table.name,
-								column: fk.column,
-							});
-							continue;
-						}
-						if (fk.referencedColumn) {
-							const refCol = refTable.columns.find(
-								(c) => c.name === fk.referencedColumn,
+					for (const table of parsed.tables) {
+						for (const fk of table.foreignKeys) {
+							const refTable = parsed.tables.find(
+								(t) =>
+									t.name === fk.referencedTable ||
+									`${t.schema}.${t.name}` === fk.referencedTable,
 							);
-							if (!refCol) {
+							if (!refTable) {
 								allIssues.push({
 									type: "error",
-									message: `column "${fk.referencedColumn}" not found in table "${refTable.name}"`,
+									message: `table "${fk.referencedTable}" not created`,
 									table: table.name,
 									column: fk.column,
 								});
+								continue;
+							}
+							if (fk.referencedColumn) {
+								const refCol = refTable.columns.find(
+									(c) => c.name === fk.referencedColumn,
+								);
+								if (!refCol) {
+									allIssues.push({
+										type: "error",
+										message: `column "${fk.referencedColumn}" not found in table "${refTable.name}"`,
+										table: table.name,
+										column: fk.column,
+									});
+								}
 							}
 						}
 					}
-				}
 
-				setSchema(parsed);
-				setIssues(allIssues);
+					setSchema(parsed);
+					setIssues(allIssues);
 
-				if (allIssues.length > 0) {
-					for (const issue of allIssues.slice(0, 3)) {
-						toast.warning(
-							issue.table ? `[${issue.table}] ${issue.message}` : issue.message,
-						);
+					if (allIssues.length > 0) {
+						for (const issue of allIssues.slice(0, 3)) {
+							toast.warning(
+								issue.table ? `[${issue.table}] ${issue.message}` : issue.message,
+							);
+						}
+						if (allIssues.length > 3) {
+							toast.warning(`...and ${allIssues.length - 3} more issue(s)`);
+						}
+					} else {
+						toast.success(`Rendered ${parsed.tables.length} table(s)`);
 					}
-					if (allIssues.length > 3) {
-						toast.warning(`...and ${allIssues.length - 3} more issue(s)`);
-					}
-				} else {
-					toast.success(`Rendered ${parsed.tables.length} table(s)`);
+				} catch (e) {
+					toast.error(e instanceof Error ? e.message : "Failed to parse schema");
+					setIsRendering(false);
 				}
-			} catch (e) {
-				toast.error(e instanceof Error ? e.message : "Failed to parse schema");
-			}
+			}, 0);
 		},
 		[databaseType],
 	);
@@ -490,7 +503,10 @@ export default function SchemaPage() {
 						{project && (
 							<>
 								<MenubarSeparator />
-								<MenubarItem onSelect={() => setExportDialogOpen(true)}>
+								<MenubarItem
+									onSelect={() => setExportDialogOpen(true)}
+									disabled={isExporting}
+								>
 									<Download className="size-3.5 mr-2" />
 									Export as Image...
 								</MenubarItem>
@@ -665,6 +681,7 @@ export default function SchemaPage() {
 								onActiveTableChange={setActiveTableName}
 								onTableDoubleClick={handleTableDoubleClick}
 								databaseType={databaseType}
+								isRendering={isRendering}
 							/>
 						</div>
 						<IssuesPanel issues={issues} onJumpToIssue={handleJumpToIssue} />
@@ -690,6 +707,10 @@ export default function SchemaPage() {
 							focusTarget={focusTarget}
 							exportDialogOpen={exportDialogOpen}
 							onExportDialogOpenChange={setExportDialogOpen}
+							isExporting={isExporting}
+							onExportingChange={setIsExporting}
+							isRendering={isRendering}
+							onRenderingChange={setIsRendering}
 						/>
 					</ReactFlowProvider>
 				</ResizablePanel>

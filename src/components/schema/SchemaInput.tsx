@@ -5,7 +5,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { tags } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
-import { FileCode, Play, Upload } from "lucide-react";
+import { FileCode, Loader2, Play, Upload } from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -190,6 +190,7 @@ interface SchemaInputProps {
 	onChange?: (ddl: string) => void;
 	onActiveTableChange?: (tableName: string | null) => void;
 	onTableDoubleClick?: (tableName: string) => void;
+	isRendering?: boolean;
 }
 
 export interface SchemaInputHandle {
@@ -207,6 +208,7 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 			onChange,
 			onActiveTableChange,
 			onTableDoubleClick,
+			isRendering,
 		},
 		ref,
 	) {
@@ -414,9 +416,13 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 						>
 							<Upload className="size-3.5" />
 						</Button>
-						<Button variant="default" size="xs" onClick={handleRender}>
-							<Play className="size-3.5" />
-							Render
+						<Button variant="default" size="xs" onClick={handleRender} disabled={isRendering}>
+							{isRendering ? (
+								<Loader2 className="size-3.5 mr-1 animate-spin" />
+							) : (
+								<Play className="size-3.5 mr-1" />
+							)}
+							{isRendering ? "Rendering schema…" : "Render"}
 						</Button>
 					</div>
 				</div>

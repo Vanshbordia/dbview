@@ -121,7 +121,7 @@ export default function IssuesPanel({
 									title="Copy issue"
 								>
 									{copiedIdx === i ? (
-										<span className="text-[10px] text-muted-foreground px-1">
+										<span className="text-2xs text-muted-foreground px-1">
 											Copied
 										</span>
 									) : (
