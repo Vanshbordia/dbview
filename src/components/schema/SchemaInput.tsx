@@ -416,7 +416,12 @@ const SchemaInput = forwardRef<SchemaInputHandle, SchemaInputProps>(
 						>
 							<Upload className="size-3.5" />
 						</Button>
-						<Button variant="default" size="xs" onClick={handleRender} disabled={isRendering}>
+						<Button
+							variant="default"
+							size="xs"
+							onClick={handleRender}
+							disabled={isRendering}
+						>
 							{isRendering ? (
 								<Loader2 className="size-3.5 mr-1 animate-spin" />
 							) : (

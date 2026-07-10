@@ -1,16 +1,16 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	Database,
+	Download,
 	FilePlus,
 	History,
 	Moon,
 	RefreshCw,
+	Search,
 	Settings,
 	Sun,
 	Trash2,
 	Upload,
-	Search,
-	Download,
 } from "lucide-react";
 import {
 	type ChangeEvent,
@@ -335,7 +335,9 @@ export default function SchemaPage() {
 					if (allIssues.length > 0) {
 						for (const issue of allIssues.slice(0, 3)) {
 							toast.warning(
-								issue.table ? `[${issue.table}] ${issue.message}` : issue.message,
+								issue.table
+									? `[${issue.table}] ${issue.message}`
+									: issue.message,
 							);
 						}
 						if (allIssues.length > 3) {
@@ -345,7 +347,9 @@ export default function SchemaPage() {
 						toast.success(`Rendered ${parsed.tables.length} table(s)`);
 					}
 				} catch (e) {
-					toast.error(e instanceof Error ? e.message : "Failed to parse schema");
+					toast.error(
+						e instanceof Error ? e.message : "Failed to parse schema",
+					);
 					setIsRendering(false);
 				}
 			}, 0);
@@ -744,4 +748,3 @@ export default function SchemaPage() {
 		</div>
 	);
 }
-

@@ -221,7 +221,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 
 	return (
 		<div
-			className={`rounded-xl border-2 shadow-lg backdrop-blur-sm transition-all duration-150 ${
+			className={`rounded-xl border-2 shadow-lg transition-all duration-150 ${
 				selected
 					? "border-zinc-400 dark:border-zinc-500 shadow-zinc-400/30 dark:shadow-zinc-500/30"
 					: subSelected
@@ -232,7 +232,6 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 			}`}
 			style={{
 				background: "var(--card)",
-				backdropFilter: "blur(6px)",
 				width: 300,
 				overflow: "visible",
 				...(subSelected && !selected ? { borderColor: "var(--edge-ref)" } : {}),

@@ -1,5 +1,5 @@
-import { toSvg } from "html-to-image";
 import type { Node } from "@xyflow/react";
+import { toSvg } from "html-to-image";
 
 export interface ExportOptions {
 	format: "png" | "svg";
@@ -67,7 +67,8 @@ function svgToPng(
 			ctx.drawImage(img, 0, 0, width, height);
 			resolve(canvas.toDataURL("image/png"));
 		};
-		img.onerror = () => reject(new Error("Failed to rasterize the SVG to PNG."));
+		img.onerror = () =>
+			reject(new Error("Failed to rasterize the SVG to PNG."));
 		img.src = dataUrl;
 	});
 }
@@ -77,7 +78,12 @@ export async function exportGraph(
 	options: ExportOptions,
 	reactFlowInstance: {
 		getNodes: () => Node[];
-		getNodesBounds: (nodes: Node[]) => { x: number; y: number; width: number; height: number };
+		getNodesBounds: (nodes: Node[]) => {
+			x: number;
+			y: number;
+			width: number;
+			height: number;
+		};
 	},
 ) {
 	const { format, scale, excludeBg, selectedOnly, theme } = options;

@@ -52,15 +52,11 @@ function getTableHeight(table: TableSchema): number {
 function detectRelationshipType(
 	fk: ForeignKey,
 	table: TableSchema,
-	allTables: TableSchema[],
+	tableMap: Map<string, TableSchema>,
 ): RelationshipType {
 	if (fk.isUnique) return "one-to-one";
 
-	const refTable = allTables.find(
-		(t) =>
-			t.name === fk.referencedTable ||
-			`${t.schema}.${t.name}` === fk.referencedTable,
-	);
+	const refTable = tableMap.get(fk.referencedTable);
 	if (!refTable) return "one-to-many";
 
 	const isM2M = isJunctionTable(table);
@@ -87,26 +83,27 @@ export function buildGraph(
 	edges: RelationshipEdgeType[];
 } {
 	const tables = schema.tables;
+
+	// Build a lookup map (keyed by both table name and "schema.name") so the
+	// repeated relationship resolution below is O(1) instead of O(n²).
+	const tableMap = new Map<string, TableSchema>();
+	for (const t of tables) {
+		tableMap.set(t.name, t);
+		if (t.schema) tableMap.set(`${t.schema}.${t.name}`, t);
+	}
+
 	const nodes: TableNodeType[] = [];
 	const edges: RelationshipEdgeType[] = [];
 
 	function resolveRefCol(fk: ForeignKey): string {
-		const refTable = tables.find(
-			(t) =>
-				t.name === fk.referencedTable ||
-				`${t.schema}.${t.name}` === fk.referencedTable,
-		);
+		const refTable = tableMap.get(fk.referencedTable);
 		return fk.referencedColumn || (refTable?.primaryKey[0] ?? "");
 	}
 
 	const referencedColMap = new Map<string, Set<string>>();
 	for (const table of tables) {
 		for (const fk of table.foreignKeys) {
-			const refTable = tables.find(
-				(t) =>
-					t.name === fk.referencedTable ||
-					`${t.schema}.${t.name}` === fk.referencedTable,
-			);
+			const refTable = tableMap.get(fk.referencedTable);
 			if (!refTable) continue;
 			if (!referencedColMap.has(refTable.name)) {
 				referencedColMap.set(refTable.name, new Set());
@@ -125,13 +122,16 @@ export function buildGraph(
 			columnRelationships[fk.column] = detectRelationshipType(
 				fk,
 				table,
-				tables,
+				tableMap,
 			);
 		}
 		nodes.push({
 			id: table.name,
 			type: "table",
 			position: { x: 0, y: 0 },
+			// Provide measured dimensions so React Flow skips per-node DOM
+			// measurement (the dominant cost for large graphs).
+			measured: { width: NODE_WIDTH, height },
 			data: {
 				table,
 				label: table.name,
@@ -147,14 +147,13 @@ export function buildGraph(
 
 	for (const table of tables) {
 		for (const fk of table.foreignKeys) {
-			const relType = detectRelationshipType(fk, table, tables);
+			const relType = detectRelationshipType(fk, table, tableMap);
 			const refTableName = fk.referencedTable.includes(".")
 				? fk.referencedTable.split(".")[1]
 				: fk.referencedTable;
 
-			const refTable = tables.find(
-				(t) => t.name === refTableName || t.name === fk.referencedTable,
-			);
+			const refTable =
+				tableMap.get(refTableName) ?? tableMap.get(fk.referencedTable);
 			if (!refTable) continue;
 
 			const resolvedCol = resolveRefCol(fk);

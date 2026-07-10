@@ -7,27 +7,14 @@ import {
 	ReactFlow,
 	useEdgesState,
 	useNodesState,
-	useNodesInitialized,
 	useReactFlow,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import type { Edge, Node } from "@xyflow/react";
 import { Download, Loader2, Maximize2, RefreshCw, Shuffle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button.tsx";
-import {
-	buildGraph,
-	type EdgeStyle,
-	type LayoutDirection,
-	type TableNodeType,
-} from "#/lib/graph-builder.ts";
-import type { ParsedSchema, TableSchema } from "#/types/schema.ts";
-import RelationshipEdge from "./RelationshipEdge.tsx";
-import TableInfoPanel from "./TableInfoPanel.tsx";
-import TableNode from "./TableNode.tsx";
-import WelcomeScreen from "./WelcomeScreen.tsx";
-import { useTheme } from "../theme-provider.tsx";
-import { exportGraph } from "#/lib/graph-exporter.ts";
 import {
 	Dialog,
 	DialogContent,
@@ -36,7 +23,19 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog.tsx";
-import { toast } from "sonner";
+import {
+	buildGraph,
+	type EdgeStyle,
+	type LayoutDirection,
+	type TableNodeType,
+} from "#/lib/graph-builder.ts";
+import { exportGraph } from "#/lib/graph-exporter.ts";
+import type { ParsedSchema, TableSchema } from "#/types/schema.ts";
+import { useTheme } from "../theme-provider.tsx";
+import RelationshipEdge from "./RelationshipEdge.tsx";
+import TableInfoPanel from "./TableInfoPanel.tsx";
+import TableNode from "./TableNode.tsx";
+import WelcomeScreen from "./WelcomeScreen.tsx";
 
 const nodeTypes = { table: TableNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -94,14 +93,13 @@ export default function SchemaGraph({
 	const [selectedTable, setSelectedTable] = useState<TableSchema | null>(null);
 	const [subSelectedId, setSubSelectedId] = useState<string | null>(null);
 	const { fitView, fitBounds, getNodesBounds } = useReactFlow();
-	const nodesInitialized = useNodesInitialized();
 	const reactFlowInstance = useReactFlow();
 	const edgeStyleRef = useRef(edgeStyle);
 	edgeStyleRef.current = edgeStyle;
 
 	const { theme } = useTheme();
 	const reactFlowWrapperRef = useRef<HTMLDivElement>(null);
-	
+
 	// Export configuration states
 	const [exportFormat, setExportFormat] = useState<"png" | "svg">("png");
 	const [exportScale, setExportScale] = useState<number>(2);
@@ -212,34 +210,40 @@ export default function SchemaGraph({
 		],
 	);
 
+	// Build the graph only when its inputs change, not on every re-render
+	// (selection, active table, etc.).
+	const builtGraph = useMemo(
+		() =>
+			schema && schema.tables.length > 0
+				? buildGraph(schema, layoutDir, edgeStyle, erroredTables)
+				: null,
+		[schema, layoutDir, edgeStyle, erroredTables],
+	);
+
 	useEffect(() => {
-		if (!schema || schema.tables.length === 0) {
+		if (!builtGraph) {
 			setNodes([]);
 			setEdges([]);
+			onRenderingChange(false);
 			return;
 		}
 
 		// Ensure the overlay is shown for re-layout / direction toggles too
 		// (where `schema` does not change and the Render button isn't involved).
 		onRenderingChange(true);
-		const { nodes: newNodes, edges: newEdges } = buildGraph(
-			schema,
-			layoutDir,
-			edgeStyle,
-			erroredTables,
-		);
-		setNodes(newNodes);
-		setEdges(newEdges);
-	}, [schema, layoutDir, edgeStyle, erroredTables, setNodes, setEdges, onRenderingChange]);
+		setNodes(builtGraph.nodes);
+		setEdges(builtGraph.edges);
+	}, [builtGraph, setNodes, setEdges, onRenderingChange]);
 
-	// Clear the rendering overlay once React Flow has measured/initialized the
-	// (newly built) nodes. A short minimum delay keeps the overlay visible even
-	// when measurement is instant, so the user sees feedback.
+	// Hide the overlay once the rebuilt graph has been committed and painted.
+	// Keyed on `builtGraph` (a new object on every rebuild, including TB<->LR
+	// toggles) so it re-runs and clears reliably — unlike a transition-based
+	// check on node initialization, which stays true for pre-measured nodes.
 	useEffect(() => {
-		if (!nodesInitialized) return;
-		const t = setTimeout(() => onRenderingChange(false), 250);
+		if (!builtGraph) return;
+		const t = setTimeout(() => onRenderingChange(false), 300);
 		return () => clearTimeout(t);
-	}, [nodesInitialized, onRenderingChange]);
+	}, [builtGraph, onRenderingChange]);
 
 	useEffect(() => {
 		setNodes((nds) =>
@@ -269,7 +273,9 @@ export default function SchemaGraph({
 		setEdges(newEdges);
 	}, [schema, layoutDir, erroredTables, setNodes, setEdges]);
 
-	const focusTimerRef = useRef<ReturnType<typeof setTimeout>>();
+	const focusTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
 	useEffect(() => {
 		if (schema?.tables.length) {
 			if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
@@ -326,8 +332,10 @@ export default function SchemaGraph({
 	// Export trigger logic
 	const handlePerformExport = useCallback(async () => {
 		if (!reactFlowWrapperRef.current) return;
-		
-		const rfViewport = reactFlowWrapperRef.current.querySelector(".react-flow__viewport") as HTMLElement;
+
+		const rfViewport = reactFlowWrapperRef.current.querySelector(
+			".react-flow__viewport",
+		) as HTMLElement;
 		if (!rfViewport) {
 			toast.error("React Flow viewport element not found.");
 			return;
@@ -354,108 +362,119 @@ export default function SchemaGraph({
 			toast.success("Graph exported successfully!");
 			onExportDialogOpenChange(false);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to export graph.");
+			toast.error(
+				err instanceof Error ? err.message : "Failed to export graph.",
+			);
 		} finally {
 			onExportingChange(false);
 		}
-	}, [exportFormat, exportScale, exportExcludeBg, exportSelectedOnly, theme, reactFlowInstance, onExportDialogOpenChange, onExportingChange]);
+	}, [
+		exportFormat,
+		exportScale,
+		exportExcludeBg,
+		exportSelectedOnly,
+		theme,
+		reactFlowInstance,
+		onExportDialogOpenChange,
+		onExportingChange,
+	]);
 
 	return (
 		<div ref={reactFlowWrapperRef} className="w-full h-full relative">
 			{schema && schema.tables.length > 0 ? (
 				<ReactFlow
-				nodes={nodes}
-				edges={edges}
-				onNodesChange={onNodesChange}
-				onEdgesChange={onEdgesChange}
-				onConnect={onConnect}
-				onNodeClick={onNodeClick}
-				onPaneClick={onPaneClick}
-				nodeTypes={nodeTypes}
-				edgeTypes={edgeTypes}
-				defaultEdgeOptions={defaultEdgeOptions}
-				fitView
-				fitViewOptions={{ padding: 0.3 }}
-				minZoom={0.1}
-				maxZoom={2}
-				panOnScroll
-				selectionOnDrag
-				panOnDrag={[1, 2]}
-				deleteKeyCode="Delete"
-				className="bg-transparent"
-			>
-				<Background
-					variant={BackgroundVariant.Dots}
-					gap={20}
-					size={1}
-					color="var(--border)"
-				/>
-				<Controls className="!bg-card !border-border !shadow-sm" />
-				<MiniMap
-					pannable
-					zoomable
-					nodeStrokeWidth={2}
-					nodeColor="var(--primary)"
-					maskColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
-					className="!bg-card !border !border-border !rounded-lg !shadow-sm"
-				/>
+					nodes={nodes}
+					edges={edges}
+					onNodesChange={onNodesChange}
+					onEdgesChange={onEdgesChange}
+					onConnect={onConnect}
+					onNodeClick={onNodeClick}
+					onPaneClick={onPaneClick}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					defaultEdgeOptions={defaultEdgeOptions}
+					fitView
+					fitViewOptions={{ padding: 0.3 }}
+					minZoom={0.1}
+					maxZoom={2}
+					panOnScroll
+					selectionOnDrag
+					panOnDrag={[1, 2]}
+					deleteKeyCode="Delete"
+					className="bg-transparent"
+				>
+					<Background
+						variant={BackgroundVariant.Dots}
+						gap={20}
+						size={1}
+						color="var(--border)"
+					/>
+					<Controls className="!bg-card !border-border !shadow-sm" />
+					<MiniMap
+						pannable
+						zoomable
+						nodeStrokeWidth={2}
+						nodeColor="var(--primary)"
+						maskColor="color-mix(in oklab, var(--foreground) 8%, transparent)"
+						className="!bg-card !border !border-border !rounded-lg !shadow-sm"
+					/>
 
-				<Panel position="top-left">
-					<div className="flex gap-1 p-1 rounded-lg shadow-lg border border-border bg-card/90 backdrop-blur-sm">
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={handleRelayout}
-							title="Re-layout graph"
-						>
-							<RefreshCw className="size-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={handleFitView}
-							title="Fit view"
-						>
-							<Maximize2 className="size-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={handleToggleDirection}
-							title={`Switch to ${layoutDir === "TB" ? "horizontal" : "vertical"} layout`}
-						>
-							<Shuffle className="size-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={() => onExportDialogOpenChange(true)}
-							title="Export schema as image"
-						>
-							<Download className="size-3.5" />
-						</Button>
-						<span className="flex items-center px-1.5 text-2xs font-mono font-semibold opacity-60 select-none text-muted-foreground">
-							{layoutDir}
-						</span>
-					</div>
-				</Panel>
-
-				{selectedTable && (
-					<Panel position="top-right">
-						<TableInfoPanel
-							table={selectedTable}
-							incomingRefs={incomingRefs}
-							onClose={() => {
-								setSelectedTable(null);
-								setSubSelectedId(null);
-								highlightEdges(null);
-								onActiveTableChange?.(null);
-							}}
-							onRefClick={handleRefClick}
-						/>
+					<Panel position="top-left">
+						<div className="flex gap-1 p-1 rounded-lg shadow-lg border border-border bg-card/90 backdrop-blur-sm">
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								onClick={handleRelayout}
+								title="Re-layout graph"
+							>
+								<RefreshCw className="size-3.5" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								onClick={handleFitView}
+								title="Fit view"
+							>
+								<Maximize2 className="size-3.5" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								onClick={handleToggleDirection}
+								title={`Switch to ${layoutDir === "TB" ? "horizontal" : "vertical"} layout`}
+							>
+								<Shuffle className="size-3.5" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								onClick={() => onExportDialogOpenChange(true)}
+								title="Export schema as image"
+							>
+								<Download className="size-3.5" />
+							</Button>
+							<span className="flex items-center px-1.5 text-2xs font-mono font-semibold opacity-60 select-none text-muted-foreground">
+								{layoutDir}
+							</span>
+						</div>
 					</Panel>
-				)}
-			</ReactFlow>
+
+					{selectedTable && (
+						<Panel position="top-right">
+							<TableInfoPanel
+								table={selectedTable}
+								incomingRefs={incomingRefs}
+								onClose={() => {
+									setSelectedTable(null);
+									setSubSelectedId(null);
+									highlightEdges(null);
+									onActiveTableChange?.(null);
+								}}
+								onRefClick={handleRefClick}
+							/>
+						</Panel>
+					)}
+				</ReactFlow>
 			) : (
 				<WelcomeScreen
 					projectList={projectList}
@@ -480,15 +499,20 @@ export default function SchemaGraph({
 			<Dialog open={exportDialogOpen} onOpenChange={onExportDialogOpenChange}>
 				<DialogContent className="sm:max-w-md bg-card text-foreground border-border">
 					<DialogHeader>
-						<DialogTitle className="text-foreground">Export Schema Image</DialogTitle>
+						<DialogTitle className="text-foreground">
+							Export Schema Image
+						</DialogTitle>
 						<DialogDescription className="text-muted-foreground">
-							Export your ER diagram to PNG or SVG with customized export parameters.
+							Export your ER diagram to PNG or SVG with customized export
+							parameters.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-4 py-4">
 						{/* Format Selector */}
 						<div className="grid grid-cols-4 items-center gap-4">
-							<span className="text-right text-xs font-semibold text-muted-foreground">Format</span>
+							<span className="text-right text-xs font-semibold text-muted-foreground">
+								Format
+							</span>
 							<div className="col-span-3 flex gap-2">
 								<Button
 									type="button"
@@ -514,7 +538,9 @@ export default function SchemaGraph({
 						{/* Scale Multiplier for PNG only */}
 						{exportFormat === "png" && (
 							<div className="grid grid-cols-4 items-center gap-4">
-								<span className="text-right text-xs font-semibold text-muted-foreground">Resolution</span>
+								<span className="text-right text-xs font-semibold text-muted-foreground">
+									Resolution
+								</span>
 								<div className="col-span-3 flex gap-2">
 									{[1, 2, 3].map((scale) => (
 										<Button
@@ -534,7 +560,9 @@ export default function SchemaGraph({
 
 						{/* Background Toggle */}
 						<div className="grid grid-cols-4 items-center gap-4">
-							<span className="text-right text-xs font-semibold text-muted-foreground">Background</span>
+							<span className="text-right text-xs font-semibold text-muted-foreground">
+								Background
+							</span>
 							<div className="col-span-3 flex items-center">
 								<label className="flex items-center gap-2 cursor-pointer text-xs select-none text-foreground font-medium">
 									<input
@@ -550,7 +578,9 @@ export default function SchemaGraph({
 
 						{/* Scope Selection */}
 						<div className="grid grid-cols-4 items-center gap-4">
-							<span className="text-right text-xs font-semibold text-muted-foreground">Scope</span>
+							<span className="text-right text-xs font-semibold text-muted-foreground">
+								Scope
+							</span>
 							<div className="col-span-3 flex items-center">
 								<label className="flex items-center gap-2 cursor-pointer text-xs select-none text-foreground font-medium">
 									<input
@@ -589,4 +619,3 @@ export default function SchemaGraph({
 		</div>
 	);
 }
-
