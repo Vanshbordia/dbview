@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4f8ef7"/>
+      <stop offset="100%" stop-color="#3b6fd4"/>
+    </linearGradient>
+  </defs>
+  <!-- Database cylinder body -->
+  <rect x="136" y="200" width="240" height="160" rx="8" fill="url(#g)"/>
+  <!-- Database top ellipse -->
+  <ellipse cx="256" cy="200" rx="120" ry="36" fill="#6ba3f8"/>
+  <!-- Database bottom ellipse -->
+  <ellipse cx="256" cy="360" rx="120" ry="36" fill="#2d5bb5"/>
+  <!-- Table rows -->
+  <rect x="170" y="240" width="172" height="6" rx="3" fill="#ffffff" opacity="0.3"/>
+  <rect x="170" y="260" width="140" height="6" rx="3" fill="#ffffff" opacity="0.2"/>
+  <rect x="170" y="280" width="155" height="6" rx="3" fill="#ffffff" opacity="0.2"/>
+  <rect x="170" y="300" width="120" height="6" rx="3" fill="#ffffff" opacity="0.2"/>
+  <rect x="170" y="320" width="148" height="6" rx="3" fill="#ffffff" opacity="0.2"/>
+</svg>

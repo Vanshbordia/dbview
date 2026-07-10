@@ -138,7 +138,13 @@ export default function TableInfoPanel({
 									<button
 										key={fk.column}
 										type="button"
-										onClick={() => onRefClick?.(fk.referencedTable.includes(".") ? fk.referencedTable.split(".")[1] : fk.referencedTable)}
+										onClick={() =>
+											onRefClick?.(
+												fk.referencedTable.includes(".")
+													? fk.referencedTable.split(".")[1]
+													: fk.referencedTable,
+											)
+										}
 										className="flex items-center gap-2 py-1 px-2 rounded-md text-xs bg-muted/30 hover:bg-accent/20 transition-colors w-full text-left cursor-pointer group"
 									>
 										<Link2 className="size-2.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground" />
@@ -167,7 +173,9 @@ export default function TableInfoPanel({
 										className="flex items-center gap-2 py-1 px-2 rounded-md text-xs bg-muted/30 hover:bg-accent/20 transition-colors w-full text-left cursor-pointer group"
 									>
 										<Link2 className="size-2.5 shrink-0 text-muted-foreground group-hover:text-accent-foreground" />
-										<span className="font-mono">{ref.fromTable}.{ref.fromColumn}</span>
+										<span className="font-mono">
+											{ref.fromTable}.{ref.fromColumn}
+										</span>
 										<span className="opacity-50 text-2xs text-muted-foreground/60 group-hover:text-accent-foreground/70">
 											→ {ref.toColumn}
 										</span>

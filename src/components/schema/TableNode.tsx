@@ -1,4 +1,11 @@
-import { Handle, type NodeProps, Position, useNodes, useEdges, useUpdateNodeInternals } from "@xyflow/react";
+import {
+	Handle,
+	type NodeProps,
+	Position,
+	useEdges,
+	useNodes,
+	useUpdateNodeInternals,
+} from "@xyflow/react";
 import { Braces, Gem, Key, Link2 } from "lucide-react";
 import { memo, useLayoutEffect, useMemo } from "react";
 import type { TableNodeType } from "#/lib/graph-builder.ts";
@@ -6,45 +13,143 @@ import { getTypeColor, simplifyType } from "#/lib/type-colors.ts";
 
 function SourceSVG({ side }: { side: Position }) {
 	return (
-		<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: side === Position.Left ? "scaleX(-1)" : undefined }}>
-			<line x1="1" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="9" y1="2" x2="9" y2="10" stroke="currentColor" strokeWidth="1.5" />
+		<svg
+			width="12"
+			height="12"
+			viewBox="0 0 12 12"
+			fill="none"
+			style={{ transform: side === Position.Left ? "scaleX(-1)" : undefined }}
+		>
+			<title>Source Handle Connection Line</title>
+			<line
+				x1="1"
+				y1="6"
+				x2="9"
+				y2="6"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
+			<line
+				x1="9"
+				y1="2"
+				x2="9"
+				y2="10"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
 		</svg>
 	);
 }
 
-function TargetSVG({ type, side }: { type: string | undefined; side: Position }) {
+function TargetSVG({
+	type,
+	side,
+}: {
+	type: string | undefined;
+	side: Position;
+}) {
 	const flip = side === Position.Right;
 	const s = { transform: flip ? "scaleX(-1)" : undefined } as const;
 	if (type === "one-to-one") {
 		return (
 			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
-				<line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" />
-				<line x1="3" y1="2" x2="3" y2="10" stroke="currentColor" strokeWidth="1.5" />
+				<title>One-to-one relationship</title>
+				<line
+					x1="3"
+					y1="6"
+					x2="11"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<line
+					x1="3"
+					y1="2"
+					x2="3"
+					y2="10"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 			</svg>
 		);
 	}
 	if (type === "many-to-many") {
 		return (
 			<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
-				<line x1="3" y1="6" x2="9" y2="6" stroke="currentColor" strokeWidth="1.5" />
-				<line x1="3" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
-				<line x1="3" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
-				<line x1="9" y1="2" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
-				<line x1="9" y1="10" x2="6" y2="6" stroke="currentColor" strokeWidth="1.5" />
+				<title>Many-to-many relationship</title>
+				<line
+					x1="3"
+					y1="6"
+					x2="9"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<line
+					x1="3"
+					y1="2"
+					x2="6"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<line
+					x1="3"
+					y1="10"
+					x2="6"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<line
+					x1="9"
+					y1="2"
+					x2="6"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<line
+					x1="9"
+					y1="10"
+					x2="6"
+					y2="6"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 			</svg>
 		);
 	}
 	return (
 		<svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={s}>
-			<line x1="3" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="3" y1="2" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" />
-			<line x1="3" y1="10" x2="7" y2="6" stroke="currentColor" strokeWidth="1.5" />
+			<title>One-to-many relationship</title>
+			<line
+				x1="3"
+				y1="6"
+				x2="11"
+				y2="6"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
+			<line
+				x1="3"
+				y1="2"
+				x2="7"
+				y2="6"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
+			<line
+				x1="3"
+				y1="10"
+				x2="7"
+				y2="6"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
 		</svg>
 	);
 }
-
-
 
 function computeSide(
 	myCx: number,
@@ -67,9 +172,9 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 	const updateNodeInternals = useUpdateNodeInternals();
 
 	// Produce a stable key that changes whenever any connected node moves horizontally
-	const handleLayoutKey = useMemo(() => {
+	const _handleLayoutKey = useMemo(() => {
 		const myKey = Math.round(cx);
-		return allEdges
+		return `${allEdges
 			.filter((e) => e.source === id || e.target === id)
 			.map((e) => {
 				const otherId = e.source === id ? e.target : e.source;
@@ -78,12 +183,16 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 				const ox = Math.round(other.position.x + (other.width ?? 300) / 2);
 				return `${e.id}:${ox}`;
 			})
-			.join("|") + `|@${myKey}`;
+			.join("|")}|@${myKey}`;
 	}, [id, allNodes, allEdges, cx]);
 
 	useLayoutEffect(() => {
+		// _handleLayoutKey is a derived trigger that changes whenever a connected
+		// node moves horizontally; referencing it keeps the effect in sync with
+		// layout changes so handles are re-measured correctly.
+		void _handleLayoutKey;
 		updateNodeInternals(id);
-	}, [handleLayoutKey, id, updateNodeInternals]);
+	}, [id, updateNodeInternals, _handleLayoutKey]);
 
 	// Pre-compute edge lookups per column (hooks must be at top level)
 	const sourceEdgesByColumn = useMemo(() => {
@@ -112,7 +221,7 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 
 	return (
 		<div
-			className={`rounded-xl border-2 shadow-lg backdrop-blur-sm transition-all duration-150 ${
+			className={`rounded-xl border-2 shadow-lg transition-all duration-150 ${
 				selected
 					? "border-zinc-400 dark:border-zinc-500 shadow-zinc-400/30 dark:shadow-zinc-500/30"
 					: subSelected
@@ -123,7 +232,6 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 			}`}
 			style={{
 				background: "var(--card)",
-				backdropFilter: "blur(6px)",
 				width: 300,
 				overflow: "visible",
 				...(subSelected && !selected ? { borderColor: "var(--edge-ref)" } : {}),
@@ -211,11 +319,11 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 								const side = computeSide(cx, targetNode, Position.Right);
 								return (
 									<Handle
-										key={edge.sourceHandle}
+										key={edge.id}
 										type="source"
 										position={side}
-										id={edge.sourceHandle!}
-								className="flex! items-center! justify-center! rounded-none! border-none! bg-transparent! p-0!"
+										id={edge.sourceHandle ?? undefined}
+										className="flex! items-center! justify-center! rounded-none! border-none! bg-transparent! p-0!"
 										style={{ color: "var(--primary)" }}
 									>
 										<SourceSVG side={side} />
@@ -230,10 +338,10 @@ function TableNode({ id, data, selected }: NodeProps<TableNodeType>) {
 								const relType = edge.data?.type as string | undefined;
 								return (
 									<Handle
-										key={edge.targetHandle}
+										key={edge.id}
 										type="target"
 										position={side}
-										id={edge.targetHandle!}
+										id={edge.targetHandle ?? undefined}
 										className="flex! items-center! justify-center! rounded-none! border-none! bg-transparent! p-0!"
 										style={{ color: "var(--muted-foreground)" }}
 									>

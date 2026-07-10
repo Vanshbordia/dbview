@@ -16,7 +16,12 @@ function generateId(): string {
 	return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-export function getProjectList(): { id: string; name: string; createdAt: number; updatedAt: number }[] {
+export function getProjectList(): {
+	id: string;
+	name: string;
+	createdAt: number;
+	updatedAt: number;
+}[] {
 	try {
 		return JSON.parse(localStorage.getItem(PROJECTS_KEY) ?? "[]");
 	} catch {
@@ -24,7 +29,9 @@ export function getProjectList(): { id: string; name: string; createdAt: number;
 	}
 }
 
-function saveProjectList(list: { id: string; name: string; createdAt: number; updatedAt: number }[]): void {
+function saveProjectList(
+	list: { id: string; name: string; createdAt: number; updatedAt: number }[],
+): void {
 	localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
 }
 
@@ -41,7 +48,11 @@ function saveProject(project: Project): void {
 	localStorage.setItem(`dbview:project:${project.id}`, JSON.stringify(project));
 }
 
-export function createProject(name: string, ddl = "", databaseType: DatabaseType = "postgresql"): Project {
+export function createProject(
+	name: string,
+	ddl = "",
+	databaseType: DatabaseType = "postgresql",
+): Project {
 	const project: Project = {
 		id: generateId(),
 		name,
@@ -51,13 +62,26 @@ export function createProject(name: string, ddl = "", databaseType: DatabaseType
 		updatedAt: Date.now(),
 	};
 	const list = getProjectList();
-	list.push({ id: project.id, name: project.name, createdAt: project.createdAt, updatedAt: project.updatedAt });
-	saveProjectList(list);
+	list.push({
+		id: project.id,
+		name: project.name,
+		createdAt: project.createdAt,
+		updatedAt: project.updatedAt,
+	});
 	saveProject(project);
+	try {
+		saveProjectList(list);
+	} catch (error) {
+		localStorage.removeItem(`dbview:project:${project.id}`);
+		throw error;
+	}
 	return project;
 }
 
-export function updateProject(id: string, updates: Partial<{ name: string; ddl: string; databaseType: DatabaseType }>): Project | null {
+export function updateProject(
+	id: string,
+	updates: Partial<{ name: string; ddl: string; databaseType: DatabaseType }>,
+): Project | null {
 	const project = getProject(id);
 	if (!project) return null;
 	Object.assign(project, updates, { updatedAt: Date.now() });

@@ -30,6 +30,7 @@ export interface SchemaIssue {
 	message: string;
 	table?: string;
 	column?: string;
+	line?: number;
 }
 
 export interface ParsedSchema {

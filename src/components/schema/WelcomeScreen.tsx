@@ -1,6 +1,5 @@
 import { Database, FilePlus, FolderOpen } from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
-import type { Project } from "#/lib/project-store.ts";
 
 interface WelcomeScreenProps {
 	projectList: { id: string; name: string }[];
@@ -23,9 +22,7 @@ export default function WelcomeScreen({
 				</div>
 
 				<div className="space-y-1.5">
-					<h1 className="text-lg font-semibold tracking-tight">
-						Schema View
-					</h1>
+					<h1 className="text-lg font-semibold tracking-tight">Schema View</h1>
 					<p className="text-sm text-muted-foreground leading-relaxed">
 						Write DDL in the editor and visualize your database schema as an
 						interactive graph with relationships.
